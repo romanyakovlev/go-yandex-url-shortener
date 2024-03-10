@@ -5,7 +5,8 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"regexp"
+
+	"github.com/go-chi/chi/v5"
 )
 
 var urlMap = map[string]string{}
@@ -21,10 +22,6 @@ func RandStringBytes(n int) string {
 }
 
 func saveURL(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
 	bytes, _ := io.ReadAll(r.Body)
 	urlStr := string(bytes)
 	randomPath := RandStringBytes(8)
@@ -34,38 +31,25 @@ func saveURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func getURLByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	shortURL := r.URL.Path[1:]
+	shortURL := chi.URLParam(r, "shortURL")
 	value, ok := urlMap[shortURL]
 	if ok {
-		//fmt.Fprintf(w, "%v", value)
 		w.Header().Set("Location", value)
 		w.WriteHeader(http.StatusTemporaryRedirect)
 	} else {
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusBadRequest)
 	}
 }
 
-func processURLShortener(w http.ResponseWriter, r *http.Request) {
-	url := r.URL.Path[1:]
-	if url == "" {
-		saveURL(w, r)
-	}
-	re := regexp.MustCompile(`^[A-Za-z]{8}$`)
-	if re.MatchString(url) {
-		getURLByID(w, r)
-	}
-	w.WriteHeader(http.StatusBadRequest)
+func URLShortenerRouter() chi.Router {
+	r := chi.NewRouter()
+	r.Post("/", saveURL)
+	r.Get("/{shortURL:[A-Za-z]{8}}", getURLByID)
+	return r
 }
 
 func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc(`/`, processURLShortener)
-
-	err := http.ListenAndServe(`:8080`, mux)
+	err := http.ListenAndServe(`:8080`, URLShortenerRouter())
 	if err != nil {
 		panic(err)
 	}
