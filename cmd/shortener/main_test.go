@@ -4,15 +4,37 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/controller"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/server"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func testRequest(t *testing.T, ts *httptest.Server, method,
-	path string, body io.Reader) (*http.Response, string) {
+var ts *httptest.Server
+
+func TestMain(m *testing.M) {
+	serverConfig := config.GetConfig()
+	repo := repository.MemoryURLRepository{URLMap: make(map[string]string)}
+	shortener := service.URLShortenerService{Config: serverConfig, Repo: repo}
+	ctrl := controller.URLShortenerController{Shortener: shortener}
+	ts = httptest.NewServer(server.Router(ctrl))
+
+	exitCode := m.Run()
+
+	ts.Close()
+
+	os.Exit(exitCode)
+}
+
+func testRequest(t *testing.T, method, path string, body io.Reader) (*http.Response, string) {
 	req, err := http.NewRequest(method, ts.URL+path, body)
 	require.NoError(t, err)
 
@@ -27,9 +49,6 @@ func testRequest(t *testing.T, ts *httptest.Server, method,
 }
 
 func Test_saveURL(t *testing.T) {
-	ts := httptest.NewServer(URLShortenerRouter())
-	defer ts.Close()
-
 	testCases := []struct {
 		method       string
 		expectedCode int
@@ -42,7 +61,7 @@ func Test_saveURL(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		resp, body := testRequest(t, ts, tc.method, "/", nil)
+		resp, body := testRequest(t, tc.method, "/", nil)
 		defer resp.Body.Close()
 
 		assert.Equal(t, tc.expectedCode, resp.StatusCode, "Код ответа не совпадает с ожидаемым")
@@ -54,12 +73,9 @@ func Test_saveURL(t *testing.T) {
 }
 
 func Test_getURLByID(t *testing.T) {
-	ts := httptest.NewServer(URLShortenerRouter())
-	defer ts.Close()
-
 	linkToSave := "https://practicum.yandex.ru/"
 	expectedHostName := "practicum.yandex.ru"
-	resp, shortLink := testRequest(t, ts, http.MethodPost, "/", strings.NewReader(linkToSave))
+	resp, shortLink := testRequest(t, http.MethodPost, "/", strings.NewReader(linkToSave))
 	defer resp.Body.Close()
 	shortLinkID := strings.Split(shortLink, "/")[len(strings.Split(shortLink, "/"))-1]
 
@@ -74,7 +90,7 @@ func Test_getURLByID(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		resp, _ := testRequest(t, ts, tc.method, "/"+string(shortLinkID), nil)
+		resp, _ := testRequest(t, tc.method, "/"+string(shortLinkID), nil)
 		defer resp.Body.Close()
 
 		if tc.method == http.MethodGet {
