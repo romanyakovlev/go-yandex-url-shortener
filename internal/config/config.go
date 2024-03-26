@@ -2,9 +2,8 @@ package config
 
 import (
 	"flag"
-	"log"
-
 	"github.com/caarlos0/env/v6"
+	"go.uber.org/zap"
 )
 
 type argConfig struct {
@@ -22,11 +21,11 @@ type Config struct {
 	BaseURL       string
 }
 
-func parseEnvs() envConfig {
+func parseEnvs(s *zap.SugaredLogger) envConfig {
 	var cfg envConfig
 	err := env.Parse(&cfg)
 	if err != nil {
-		log.Fatal(err)
+		s.Fatal(err)
 	}
 	return cfg
 }
@@ -41,9 +40,9 @@ func parseFlags() argConfig {
 	return cfg
 }
 
-func GetConfig() Config {
+func GetConfig(s *zap.SugaredLogger) Config {
 	argCfg := parseFlags()
-	envCfg := parseEnvs()
+	envCfg := parseEnvs(s)
 
 	var ServerAddress string
 	var BaseURL string
