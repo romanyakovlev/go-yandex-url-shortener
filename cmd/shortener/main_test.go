@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,11 +22,13 @@ import (
 var ts *httptest.Server
 
 func TestMain(m *testing.M) {
-	serverConfig := config.GetConfig()
+	sugar := logger.GetLogger()
+	serverConfig := config.GetConfig(sugar)
 	repo := repository.MemoryURLRepository{URLMap: make(map[string]string)}
 	shortener := service.URLShortenerService{Config: serverConfig, Repo: repo}
 	ctrl := controller.URLShortenerController{Shortener: shortener}
-	ts = httptest.NewServer(server.Router(ctrl))
+	router := server.Router(ctrl, sugar)
+	ts = httptest.NewServer(router)
 
 	exitCode := m.Run()
 
