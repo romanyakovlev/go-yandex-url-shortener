@@ -18,6 +18,7 @@ func Router(controller controller.URLShortenerController, sugar *zap.SugaredLogg
 	r.Use(middlewares.RequestLoggerMiddleware(sugar))
 	r.Post("/", controller.SaveURL)
 	r.Get("/{shortURL:[A-Za-z]{8}}", controller.GetURLByID)
+	r.Post("/api/shorten", controller.ShortenURL)
 	return r
 }
 
@@ -26,7 +27,7 @@ func Run() error {
 	serverConfig := config.GetConfig(sugar)
 	repo := repository.MemoryURLRepository{URLMap: make(map[string]string)}
 	shortener := service.URLShortenerService{Config: serverConfig, Repo: repo}
-	ctrl := controller.URLShortenerController{Shortener: shortener}
+	ctrl := controller.URLShortenerController{Shortener: shortener, Logger: sugar}
 	router := Router(ctrl, sugar)
 	err := http.ListenAndServe(serverConfig.ServerAddress, router)
 	if err != nil {

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -26,7 +28,7 @@ func TestMain(m *testing.M) {
 	serverConfig := config.GetConfig(sugar)
 	repo := repository.MemoryURLRepository{URLMap: make(map[string]string)}
 	shortener := service.URLShortenerService{Config: serverConfig, Repo: repo}
-	ctrl := controller.URLShortenerController{Shortener: shortener}
+	ctrl := controller.URLShortenerController{Shortener: shortener, Logger: sugar}
 	router := server.Router(ctrl, sugar)
 	ts = httptest.NewServer(router)
 
@@ -56,15 +58,16 @@ func Test_saveURL(t *testing.T) {
 		method       string
 		expectedCode int
 		bodyIsEmpty  bool
+		body         string
 	}{
 		{method: http.MethodGet, expectedCode: http.StatusMethodNotAllowed, bodyIsEmpty: true},
 		{method: http.MethodPut, expectedCode: http.StatusMethodNotAllowed, bodyIsEmpty: true},
 		{method: http.MethodDelete, expectedCode: http.StatusMethodNotAllowed, bodyIsEmpty: true},
-		{method: http.MethodPost, expectedCode: http.StatusCreated, bodyIsEmpty: false},
+		{method: http.MethodPost, expectedCode: http.StatusCreated, bodyIsEmpty: false, body: `{"url": "https://practicum.yandex.ru"}`},
 	}
 
 	for _, tc := range testCases {
-		resp, body := testRequest(t, tc.method, "/", nil)
+		resp, body := testRequest(t, tc.method, "/", strings.NewReader(tc.body))
 		defer resp.Body.Close()
 
 		assert.Equal(t, tc.expectedCode, resp.StatusCode, "Код ответа не совпадает с ожидаемым")
@@ -100,6 +103,37 @@ func Test_getURLByID(t *testing.T) {
 			assert.Equal(t, resp.Request.URL.Hostname(), expectedHostName, "Redirect не был выполнен успешно")
 		}
 		assert.Equal(t, tc.expectedCode, resp.StatusCode, "Код ответа не совпадает с ожидаемым")
+	}
+
+}
+
+func Test_shortenURL(t *testing.T) {
+	testCases := []struct {
+		method       string
+		expectedCode int
+		bodyIsEmpty  bool
+		body         string
+	}{
+		{method: http.MethodGet, expectedCode: http.StatusMethodNotAllowed, bodyIsEmpty: true},
+		{method: http.MethodPut, expectedCode: http.StatusMethodNotAllowed, bodyIsEmpty: true},
+		{method: http.MethodDelete, expectedCode: http.StatusMethodNotAllowed, bodyIsEmpty: true},
+		{method: http.MethodPost, expectedCode: http.StatusInternalServerError, body: `"url": "https://practicum.yandex.ru"`, bodyIsEmpty: true},
+		{method: http.MethodPost, expectedCode: http.StatusCreated, body: `{"url": "https://practicum.yandex.ru"}`, bodyIsEmpty: false},
+	}
+
+	for _, tc := range testCases {
+		resp, body := testRequest(t, tc.method, "/api/shorten", strings.NewReader(tc.body))
+		defer resp.Body.Close()
+
+		assert.Equal(t, tc.expectedCode, resp.StatusCode, "Код ответа не совпадает с ожидаемым")
+		if !tc.bodyIsEmpty {
+			var resp models.ShortenURLResponse
+			err := json.Unmarshal([]byte(body), &resp)
+
+			assert.Equalf(t, err, nil, "Ошибка при обработке json ответа: %s", err)
+			assert.NotEqual(t, resp.Result, "", "Поле 'Result' пустое")
+			assert.NotEqual(t, body, "", "Тело ответа пустое")
+		}
 	}
 
 }
