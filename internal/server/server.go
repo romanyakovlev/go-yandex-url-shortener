@@ -1,21 +1,21 @@
 package server
 
 import (
+	"github.com/go-chi/chi/v5"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/controller"
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
-	"net/http"
-
-	"github.com/go-chi/chi/v5"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/middlewares"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
 	"go.uber.org/zap"
+	"net/http"
 )
 
 func Router(controller controller.URLShortenerController, sugar *zap.SugaredLogger) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middlewares.RequestLoggerMiddleware(sugar))
+	r.Use(middlewares.GzipMiddleware)
 	r.Post("/", controller.SaveURL)
 	r.Get("/{shortURL:[A-Za-z]{8}}", controller.GetURLByID)
 	r.Post("/api/shorten", controller.ShortenURL)
