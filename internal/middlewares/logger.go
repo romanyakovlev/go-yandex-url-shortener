@@ -1,9 +1,10 @@
 package middlewares
 
 import (
-	"go.uber.org/zap"
 	"net/http"
 	"time"
+
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
 )
 
 type (
@@ -33,7 +34,7 @@ func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	r.responseData.status = statusCode // захватываем код статуса
 }
 
-func RequestLoggerMiddleware(s *zap.SugaredLogger) func(next http.Handler) http.Handler {
+func RequestLoggerMiddleware(s *logger.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		logFn := func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()

@@ -3,6 +3,7 @@ module github.com/romanyakovlev/go-yandex-url-shortener
 go 1.21.8
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/zap v1.27.0
 )

@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,14 +9,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/controller"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/server"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var ts *httptest.Server

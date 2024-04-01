@@ -3,18 +3,19 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
 )
 
 type URLShortenerController struct {
 	Shortener service.URLShortenerService
-	Logger    *zap.SugaredLogger
+	Logger    *logger.Logger
 }
 
 func (c URLShortenerController) SaveURL(w http.ResponseWriter, r *http.Request) {

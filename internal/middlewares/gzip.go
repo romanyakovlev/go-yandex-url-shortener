@@ -1,9 +1,10 @@
 package middlewares
 
 import (
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/gzip"
 	"net/http"
 	"strings"
+
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/gzip"
 )
 
 func GzipMiddleware(h http.Handler) http.Handler {
