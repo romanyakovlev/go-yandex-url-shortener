@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -28,8 +29,11 @@ func TestMain(m *testing.M) {
 	serverConfig := config.GetConfig(sugar)
 	repo := repository.MemoryURLRepository{URLMap: make(map[string]string)}
 	shortener := service.URLShortenerService{Config: serverConfig, Repo: repo}
-	ctrl := controller.URLShortenerController{Shortener: shortener, Logger: sugar}
-	router := server.Router(ctrl, sugar)
+	URLCtrl := controller.URLShortenerController{Shortener: shortener, Logger: sugar}
+	db, _ := sql.Open("pgx", serverConfig.DatabaseDSN)
+	defer db.Close()
+	HealthCtrl := controller.HealthCheckController{DB: db}
+	router := server.Router(URLCtrl, HealthCtrl, sugar)
 	ts = httptest.NewServer(router)
 
 	exitCode := m.Run()

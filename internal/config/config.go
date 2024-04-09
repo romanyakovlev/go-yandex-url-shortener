@@ -12,18 +12,21 @@ type argConfig struct {
 	flagAAddr string
 	flagBAddr string
 	flagFAddr string
+	flagDAddr string
 }
 
 type envConfig struct {
 	ServerAddress   string `env:"SERVER_ADDRESS"`
 	BaseURL         string `env:"BASE_URL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
 
 type Config struct {
 	ServerAddress   string
 	BaseURL         string
 	FileStoragePath string
+	DatabaseDSN     string
 }
 
 func parseEnvs(s *logger.Logger) envConfig {
@@ -41,6 +44,7 @@ func parseFlags() argConfig {
 	flag.StringVar(&cfg.flagAAddr, "a", "localhost:8080", "Адрес запуска HTTP-сервера")
 	flag.StringVar(&cfg.flagBAddr, "b", "http://localhost:8080", "Базовый адрес результирующего сокращённого URL")
 	flag.StringVar(&cfg.flagFAddr, "f", "", "Путь для сохраниния данных в файле")
+	flag.StringVar(&cfg.flagDAddr, "d", "", "Строка с адресом подключения к БД")
 	// делаем разбор командной строки
 	flag.Parse()
 	return cfg
@@ -53,6 +57,7 @@ func GetConfig(s *logger.Logger) Config {
 	var ServerAddress string
 	var BaseURL string
 	var FileStoragePath string
+	var DatabaseDSN string
 
 	if envCfg.ServerAddress != "" {
 		ServerAddress = envCfg.ServerAddress
@@ -69,9 +74,15 @@ func GetConfig(s *logger.Logger) Config {
 	} else {
 		FileStoragePath = argCfg.flagFAddr
 	}
+	if envCfg.DatabaseDSN != "" {
+		DatabaseDSN = envCfg.DatabaseDSN
+	} else {
+		DatabaseDSN = argCfg.flagDAddr
+	}
 	return Config{
 		ServerAddress:   ServerAddress,
 		BaseURL:         BaseURL,
 		FileStoragePath: FileStoragePath,
+		DatabaseDSN:     DatabaseDSN,
 	}
 }
