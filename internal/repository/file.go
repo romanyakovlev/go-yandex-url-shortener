@@ -17,9 +17,9 @@ type FileURLRepository struct {
 }
 
 type URLRow struct {
-	UUID        uuid.UUID `json:"uuid"`
-	ShortURL    string    `json:"short_url"`
-	OriginalURL string    `json:"original_url"`
+	UUID        uuid.UUID `json:"uuid" db:"uuid"`
+	ShortURL    string    `json:"short_url" db:"short_url"`
+	OriginalURL string    `json:"original_url" db:"original_url"`
 }
 
 func (r FileURLRepository) Find(shortURL string) (string, bool) {
@@ -38,7 +38,7 @@ func (r FileURLRepository) Find(shortURL string) (string, bool) {
 	return "", false
 }
 
-func (r FileURLRepository) Save(randomPath string, urlStr string) {
+func (r FileURLRepository) Save(randomPath string, urlStr string) error {
 	URLRowObject := URLRow{UUID: uuid.New(), ShortURL: randomPath, OriginalURL: urlStr}
 	data, err := json.Marshal(URLRowObject)
 	if err != nil {
@@ -47,6 +47,8 @@ func (r FileURLRepository) Save(randomPath string, urlStr string) {
 	_, err = r.Writer.WriteString(string(data) + "\n")
 	if err != nil {
 		r.Logger.Debugf("Cannot write data: %s", err)
+		return err
 	}
 	r.Writer.Flush()
+	return nil
 }

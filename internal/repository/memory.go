@@ -4,8 +4,9 @@ type MemoryURLRepository struct {
 	URLMap map[string]string
 }
 
-func (r MemoryURLRepository) Save(randomPath string, urlStr string) {
+func (r MemoryURLRepository) Save(randomPath string, urlStr string) error {
 	r.URLMap[randomPath] = urlStr
+	return nil
 }
 
 func (r MemoryURLRepository) Find(shortURL string) (string, bool) {

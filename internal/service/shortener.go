@@ -7,7 +7,7 @@ import (
 )
 
 type URLShortener interface {
-	AddURL(urlStr string) string
+	AddURL(urlStr string) (string, error)
 	GetURL(shortURL string) (string, bool)
 }
 
@@ -16,10 +16,13 @@ type URLShortenerService struct {
 	Repo   repository.URLRepository
 }
 
-func (s URLShortenerService) AddURL(urlStr string) string {
+func (s URLShortenerService) AddURL(urlStr string) (string, error) {
 	randomPath := utils.RandStringBytes(8)
-	s.Repo.Save(randomPath, urlStr)
-	return s.Config.BaseURL + "/" + randomPath
+	err := s.Repo.Save(randomPath, urlStr)
+	if err != nil {
+		return "", err
+	}
+	return s.Config.BaseURL + "/" + randomPath, nil
 }
 
 func (s URLShortenerService) GetURL(shortURL string) (string, bool) {

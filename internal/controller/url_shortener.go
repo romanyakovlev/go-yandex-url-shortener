@@ -21,7 +21,12 @@ type URLShortenerController struct {
 func (c URLShortenerController) SaveURL(w http.ResponseWriter, r *http.Request) {
 	bytes, _ := io.ReadAll(r.Body)
 	urlStr := string(bytes)
-	shortURL := c.Shortener.AddURL(urlStr)
+	shortURL, err := c.Shortener.AddURL(urlStr)
+	if err != nil {
+		c.Logger.Debugf("Shortener service error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, "%v", shortURL)
 }
@@ -45,7 +50,12 @@ func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	shortURL := c.Shortener.AddURL(req.URL)
+	shortURL, err := c.Shortener.AddURL(req.URL)
+	if err != nil {
+		c.Logger.Debugf("Shortener service error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	resp := models.ShortenURLResponse{Result: shortURL}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

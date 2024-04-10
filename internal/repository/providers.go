@@ -2,6 +2,8 @@ package repository
 
 import (
 	"bufio"
+	"database/sql"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
 	"os"
 
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
@@ -24,14 +26,16 @@ func NewFileWriter(fileName string) (*bufio.Writer, error) {
 	return writer, nil
 }
 
-func NewURLRepository(fileName string, sugar *logger.Logger) (URLRepository, error) {
-	if fileName != "" {
-		fileScanner, err := NewFileScanner(fileName)
+func NewURLRepository(serverConfig config.Config, DB *sql.DB, sugar *logger.Logger) (URLRepository, error) {
+	if serverConfig.DatabaseDSN != "" {
+		return DBURLRepository{DB: DB}, nil
+	} else if serverConfig.FileStoragePath != "" {
+		fileScanner, err := NewFileScanner(serverConfig.FileStoragePath)
 		if err != nil {
 			sugar.Errorf("Server error: %v", err)
 			return nil, err
 		}
-		fileWriter, err := NewFileWriter(fileName)
+		fileWriter, err := NewFileWriter(serverConfig.FileStoragePath)
 		if err != nil {
 			sugar.Errorf("Server error: %v", err)
 			return nil, err

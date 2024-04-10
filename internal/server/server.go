@@ -41,7 +41,7 @@ func Run() error {
 	}
 	defer DB.Close()
 
-	repo, err := repository.NewURLRepository(serverConfig.FileStoragePath, sugar)
+	repo, err := repository.NewURLRepository(serverConfig, DB, sugar)
 	if err != nil {
 		sugar.Errorf("Server error: %v", err)
 		return err
