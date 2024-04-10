@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/controller"
@@ -39,9 +40,16 @@ func Run() error {
 		sugar.Errorf("Server error: %v", err)
 		return err
 	}
+	
 	defer DB.Close()
 
-	repo, err := repository.NewURLRepository(serverConfig.FileStoragePath, sugar)
+	migrationsDir := "./migrations"
+
+	if err := goose.Up(DB, migrationsDir); err != nil {
+		sugar.Fatalf("goose Up failed: %v\n", err)
+	}
+
+	repo, err := repository.NewURLRepository(serverConfig, DB, sugar)
 	if err != nil {
 		sugar.Errorf("Server error: %v", err)
 		return err
