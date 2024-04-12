@@ -3,6 +3,7 @@ package repository
 import (
 	"bufio"
 	"encoding/json"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 
 	"github.com/google/uuid"
 
@@ -38,8 +39,8 @@ func (r FileURLRepository) Find(shortURL string) (string, bool) {
 	return "", false
 }
 
-func (r FileURLRepository) Save(randomPath string, urlStr string) error {
-	URLRowObject := URLRow{UUID: uuid.New(), ShortURL: randomPath, OriginalURL: urlStr}
+func (r FileURLRepository) Save(url models.URLToSave) error {
+	URLRowObject := URLRow{UUID: uuid.New(), ShortURL: url.RandomPath, OriginalURL: url.URLStr}
 	data, err := json.Marshal(URLRowObject)
 	if err != nil {
 		r.Logger.Debugf("Cannot encode json: %s", err)
@@ -50,5 +51,22 @@ func (r FileURLRepository) Save(randomPath string, urlStr string) error {
 		return err
 	}
 	r.Writer.Flush()
+	return nil
+}
+
+func (r FileURLRepository) BatchSave(urls []models.URLToSave) error {
+	for _, url := range urls {
+		URLRowObject := URLRow{UUID: uuid.New(), ShortURL: url.RandomPath, OriginalURL: url.URLStr}
+		data, err := json.Marshal(URLRowObject)
+		if err != nil {
+			r.Logger.Debugf("Cannot encode json: %s", err)
+		}
+		_, err = r.Writer.WriteString(string(data) + "\n")
+		if err != nil {
+			r.Logger.Debugf("Cannot write data: %s", err)
+			return err
+		}
+		r.Writer.Flush()
+	}
 	return nil
 }

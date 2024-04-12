@@ -25,6 +25,7 @@ func Router(
 	r.Use(middlewares.GzipMiddleware)
 	r.Post("/", URLShortenerController.SaveURL)
 	r.Get("/{shortURL:[A-Za-z]{8}}", URLShortenerController.GetURLByID)
+	r.Post("/api/shorten/batch", URLShortenerController.ShortenBatchURL)
 	r.Post("/api/shorten", URLShortenerController.ShortenURL)
 	r.Get("/ping", HealthCheckController.Ping)
 	return r

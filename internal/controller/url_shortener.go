@@ -66,3 +66,27 @@ func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Reques
 		return
 	}
 }
+
+func (c URLShortenerController) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
+	var req []models.ShortenBatchURLRequestElement
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&req); err != nil {
+		c.Logger.Debugf("cannot decode request JSON body: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	resp, err := c.Shortener.AddBatchURL(req)
+	if err != nil {
+		c.Logger.Debugf("Shortener service error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(resp); err != nil {
+		c.Logger.Debugf("cannot encode response JSON body: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
