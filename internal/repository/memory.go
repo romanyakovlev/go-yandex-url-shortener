@@ -22,3 +22,16 @@ func (r MemoryURLRepository) Find(shortURL string) (string, bool) {
 	value, ok := r.URLMap[shortURL]
 	return value, ok
 }
+
+func (r MemoryURLRepository) FindByOriginalURL(originalURL string) (string, bool) {
+	for key, value := range r.URLMap {
+		if value == originalURL {
+			return key, true
+		}
+	}
+	return "", false
+}
+
+func NewMemoryURLRepository() (*MemoryURLRepository, error) {
+	return &MemoryURLRepository{URLMap: make(map[string]string)}, nil
+}

@@ -3,27 +3,28 @@ package service
 import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
 	"github.com/romanyakovlev/go-yandex-url-shortener/pkg/utils"
 )
 
-type URLShortener interface {
-	AddURL(urlStr string) (string, error)
-	GetURL(shortURL string) (string, bool)
+type URLRepository interface {
+	Save(models.URLToSave) error
+	BatchSave([]models.URLToSave) error
+	Find(shortURL string) (string, bool)
+	FindByOriginalURL(originalURL string) (string, bool)
 }
 
 type URLShortenerService struct {
-	Config config.Config
-	Repo   repository.URLRepository
+	config config.Config
+	repo   URLRepository
 }
 
 func (s URLShortenerService) AddURL(urlStr string) (string, error) {
 	randomPath := utils.RandStringBytes(8)
-	err := s.Repo.Save(models.URLToSave{RandomPath: randomPath, URLStr: urlStr})
+	err := s.repo.Save(models.URLToSave{RandomPath: randomPath, URLStr: urlStr})
 	if err != nil {
 		return "", err
 	}
-	return s.Config.BaseURL + "/" + randomPath, nil
+	return s.config.BaseURL + "/" + randomPath, nil
 }
 
 func (s URLShortenerService) AddBatchURL(batchArray []models.ShortenBatchURLRequestElement) ([]models.ShortenBatchURLResponseElement, error) {
@@ -31,11 +32,11 @@ func (s URLShortenerService) AddBatchURL(batchArray []models.ShortenBatchURLRequ
 	var batchToSave []models.URLToSave
 	for _, elem := range batchArray {
 		randomPath := utils.RandStringBytes(8)
-		shortURL := s.Config.BaseURL + "/" + randomPath
+		shortURL := s.config.BaseURL + "/" + randomPath
 		batchToSave = append(batchToSave, models.URLToSave{RandomPath: randomPath, URLStr: elem.OriginalURL})
 		batchToReturn = append(batchToReturn, models.ShortenBatchURLResponseElement{CorrelationID: elem.CorrelationID, ShortURL: shortURL})
 	}
-	err := s.Repo.BatchSave(batchToSave)
+	err := s.repo.BatchSave(batchToSave)
 	if err != nil {
 		return []models.ShortenBatchURLResponseElement{}, err
 	}
@@ -43,6 +44,18 @@ func (s URLShortenerService) AddBatchURL(batchArray []models.ShortenBatchURLRequ
 }
 
 func (s URLShortenerService) GetURL(shortURL string) (string, bool) {
-	value, ok := s.Repo.Find(shortURL)
+	value, ok := s.repo.Find(shortURL)
 	return value, ok
+}
+
+func (s URLShortenerService) GetURLByOriginalURL(originalURL string) (string, bool) {
+	randomPath, ok := s.repo.FindByOriginalURL(originalURL)
+	return s.config.BaseURL + "/" + randomPath, ok
+}
+
+func NewURLShortenerService(config config.Config, repo URLRepository) *URLShortenerService {
+	return &URLShortenerService{
+		config: config,
+		repo:   repo,
+	}
 }

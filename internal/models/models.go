@@ -14,11 +14,6 @@ type ShortenBatchURLResponseElement struct {
 	ShortURL      string `json:"short_url"`
 }
 
-type ShortenBatchURLElement struct {
-	CorrelationID string `json:"correlation_id"`
-	OriginalURL   string `json:"original_url"`
-}
-
 type ShortenURLResponse struct {
 	Result string `json:"result"`
 }

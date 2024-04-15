@@ -28,11 +28,11 @@ func TestMain(m *testing.M) {
 	sugar := logger.GetLogger()
 	serverConfig := config.GetConfig(sugar)
 	repo := repository.MemoryURLRepository{URLMap: make(map[string]string)}
-	shortener := service.URLShortenerService{Config: serverConfig, Repo: repo}
-	URLCtrl := controller.URLShortenerController{Shortener: shortener, Logger: sugar}
+	shortener := service.NewURLShortenerService(serverConfig, repo)
+	URLCtrl := controller.NewURLShortenerController(shortener, sugar)
 	db, _ := sql.Open("pgx", serverConfig.DatabaseDSN)
 	defer db.Close()
-	HealthCtrl := controller.HealthCheckController{DB: db}
+	HealthCtrl := controller.NewHealthCheckController(db)
 	router := server.Router(URLCtrl, HealthCtrl, sugar)
 	ts = httptest.NewServer(router)
 

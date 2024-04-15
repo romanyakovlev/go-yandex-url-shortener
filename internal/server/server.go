@@ -1,6 +1,7 @@
 package server
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -16,8 +17,8 @@ import (
 )
 
 func Router(
-	URLShortenerController controller.URLShortenerController,
-	HealthCheckController controller.HealthCheckController,
+	URLShortenerController *controller.URLShortenerController,
+	HealthCheckController *controller.HealthCheckController,
 	sugar *logger.Logger,
 ) chi.Router {
 	r := chi.NewRouter()
@@ -31,6 +32,16 @@ func Router(
 	return r
 }
 
+func initURLRepository(serverConfig config.Config, db *sql.DB, sugar *logger.Logger) (service.URLRepository, error) {
+	if serverConfig.DatabaseDSN != "" {
+		return repository.NewDBURLRepository(db)
+	} else if serverConfig.FileStoragePath != "" {
+		return repository.NewFileURLRepository(serverConfig, sugar)
+	} else {
+		return repository.NewMemoryURLRepository()
+	}
+}
+
 func Run() error {
 	sugar := logger.GetLogger()
 	serverConfig := config.GetConfig(sugar)
@@ -42,14 +53,14 @@ func Run() error {
 	}
 	defer DB.Close()
 
-	repo, err := repository.NewURLRepository(serverConfig, DB, sugar)
+	repo, err := initURLRepository(serverConfig, DB, sugar)
 	if err != nil {
 		sugar.Errorf("Server error: %v", err)
 		return err
 	}
-	shortener := service.URLShortenerService{Config: serverConfig, Repo: repo}
-	URLCtrl := controller.URLShortenerController{Shortener: shortener, Logger: sugar}
-	HealthCtrl := controller.HealthCheckController{DB: DB}
+	shortener := service.NewURLShortenerService(serverConfig, repo)
+	URLCtrl := controller.NewURLShortenerController(shortener, sugar)
+	HealthCtrl := controller.NewHealthCheckController(DB)
 	router := Router(URLCtrl, HealthCtrl, sugar)
 	err = http.ListenAndServe(serverConfig.ServerAddress, router)
 	if err != nil {

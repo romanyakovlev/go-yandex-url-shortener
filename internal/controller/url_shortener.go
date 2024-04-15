@@ -2,29 +2,49 @@ package controller
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/apperrors"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
 )
 
+type URLShortener interface {
+	AddURL(urlStr string) (string, error)
+	AddBatchURL(batchArray []models.ShortenBatchURLRequestElement) ([]models.ShortenBatchURLResponseElement, error)
+	GetURL(shortURL string) (string, bool)
+	GetURLByOriginalURL(originalURL string) (string, bool)
+}
+
 type URLShortenerController struct {
-	Shortener service.URLShortenerService
-	Logger    *logger.Logger
+	shortener URLShortener
+	logger    *logger.Logger
 }
 
 func (c URLShortenerController) SaveURL(w http.ResponseWriter, r *http.Request) {
 	bytes, _ := io.ReadAll(r.Body)
 	urlStr := string(bytes)
-	shortURL, err := c.Shortener.AddURL(urlStr)
+	shortURL, err := c.shortener.AddURL(urlStr)
 	if err != nil {
-		c.Logger.Debugf("Shortener service error: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		var appError *apperrors.OriginalURLAlreadyExists
+		if ok := errors.As(err, &appError); ok {
+			c.logger.Debugf("Shortener service error: %s", err)
+			value, ok := c.shortener.GetURLByOriginalURL(urlStr)
+			if ok {
+				w.WriteHeader(http.StatusConflict)
+				fmt.Fprintf(w, "%v", value)
+			} else {
+				w.WriteHeader(http.StatusBadRequest)
+			}
+		} else {
+			c.logger.Debugf("Shortener service error: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -33,7 +53,7 @@ func (c URLShortenerController) SaveURL(w http.ResponseWriter, r *http.Request) 
 
 func (c URLShortenerController) GetURLByID(w http.ResponseWriter, r *http.Request) {
 	shortURL := chi.URLParam(r, "shortURL")
-	value, ok := c.Shortener.GetURL(shortURL)
+	value, ok := c.shortener.GetURL(shortURL)
 	if ok {
 		w.Header().Set("Location", value)
 		w.WriteHeader(http.StatusTemporaryRedirect)
@@ -46,14 +66,33 @@ func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Reques
 	var req models.ShortenURLRequest
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&req); err != nil {
-		c.Logger.Debugf("cannot decode request JSON body: %s", err)
+		c.logger.Debugf("cannot decode request JSON body: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	shortURL, err := c.Shortener.AddURL(req.URL)
+	shortURL, err := c.shortener.AddURL(req.URL)
 	if err != nil {
-		c.Logger.Debugf("Shortener service error: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		var appError *apperrors.OriginalURLAlreadyExists
+		if ok := errors.As(err, &appError); ok {
+			c.logger.Debugf("Shortener service error: %s", err)
+			value, ok := c.shortener.GetURLByOriginalURL(req.URL)
+			if ok {
+				resp := models.ShortenURLResponse{Result: value}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				enc := json.NewEncoder(w)
+				if err := enc.Encode(resp); err != nil {
+					c.logger.Debugf("cannot encode response JSON body: %s", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			} else {
+				w.WriteHeader(http.StatusBadRequest)
+			}
+		} else {
+			c.logger.Debugf("Shortener service error: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 		return
 	}
 	resp := models.ShortenURLResponse{Result: shortURL}
@@ -61,7 +100,7 @@ func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusCreated)
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(resp); err != nil {
-		c.Logger.Debugf("cannot encode response JSON body: %s", err)
+		c.logger.Debugf("cannot encode response JSON body: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -71,13 +110,13 @@ func (c URLShortenerController) ShortenBatchURL(w http.ResponseWriter, r *http.R
 	var req []models.ShortenBatchURLRequestElement
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&req); err != nil {
-		c.Logger.Debugf("cannot decode request JSON body: %s", err)
+		c.logger.Debugf("cannot decode request JSON body: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	resp, err := c.Shortener.AddBatchURL(req)
+	resp, err := c.shortener.AddBatchURL(req)
 	if err != nil {
-		c.Logger.Debugf("Shortener service error: %s", err)
+		c.logger.Debugf("Shortener service error: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -85,8 +124,12 @@ func (c URLShortenerController) ShortenBatchURL(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusCreated)
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(resp); err != nil {
-		c.Logger.Debugf("cannot encode response JSON body: %s", err)
+		c.logger.Debugf("cannot encode response JSON body: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+}
+
+func NewURLShortenerController(shortener URLShortener, logger *logger.Logger) *URLShortenerController {
+	return &URLShortenerController{shortener: shortener, logger: logger}
 }
