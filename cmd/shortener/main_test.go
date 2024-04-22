@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -27,9 +28,12 @@ func TestMain(m *testing.M) {
 	sugar := logger.GetLogger()
 	serverConfig := config.GetConfig(sugar)
 	repo := repository.MemoryURLRepository{URLMap: make(map[string]string)}
-	shortener := service.URLShortenerService{Config: serverConfig, Repo: repo}
-	ctrl := controller.URLShortenerController{Shortener: shortener, Logger: sugar}
-	router := server.Router(ctrl, sugar)
+	shortener := service.NewURLShortenerService(serverConfig, repo)
+	URLCtrl := controller.NewURLShortenerController(shortener, sugar)
+	db, _ := sql.Open("pgx", serverConfig.DatabaseDSN)
+	defer db.Close()
+	HealthCtrl := controller.NewHealthCheckController(db)
+	router := server.Router(URLCtrl, HealthCtrl, sugar)
 	ts = httptest.NewServer(router)
 
 	exitCode := m.Run()
@@ -132,6 +136,43 @@ func Test_shortenURL(t *testing.T) {
 
 			assert.Equalf(t, err, nil, "Ошибка при обработке json ответа: %s", err)
 			assert.NotEqual(t, resp.Result, "", "Поле 'Result' пустое")
+			assert.NotEqual(t, body, "", "Тело ответа пустое")
+		}
+	}
+
+}
+
+func Test_shortenBatchURL(t *testing.T) {
+	testCases := []struct {
+		method       string
+		expectedCode int
+		bodyIsEmpty  bool
+		body         string
+	}{
+		{method: http.MethodGet, expectedCode: http.StatusMethodNotAllowed, bodyIsEmpty: true},
+		{method: http.MethodPut, expectedCode: http.StatusMethodNotAllowed, bodyIsEmpty: true},
+		{method: http.MethodDelete, expectedCode: http.StatusMethodNotAllowed, bodyIsEmpty: true},
+		{method: http.MethodPost, expectedCode: http.StatusInternalServerError, body: `"url": "https://practicum.yandex.ru"`, bodyIsEmpty: true},
+		{
+			method:       http.MethodPost,
+			expectedCode: http.StatusCreated,
+			body: `[{"correlation_id": "111", "short_url": "https://practicum.yandex.ru"},
+					{"correlation_id": "222", "short_url": "https://yandex.ru"}]`,
+			bodyIsEmpty: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		resp, body := testRequest(t, tc.method, "/api/shorten/batch", strings.NewReader(tc.body))
+		defer resp.Body.Close()
+
+		assert.Equal(t, tc.expectedCode, resp.StatusCode, "Код ответа не совпадает с ожидаемым")
+		if !tc.bodyIsEmpty {
+			var resp []models.ShortenBatchURLResponseElement
+			err := json.Unmarshal([]byte(body), &resp)
+
+			assert.Equalf(t, err, nil, "Ошибка при обработке json ответа: %s", err)
+			assert.NotEqual(t, len(resp), 0, "Количество элементов в списке = 0")
 			assert.NotEqual(t, body, "", "Тело ответа пустое")
 		}
 	}
