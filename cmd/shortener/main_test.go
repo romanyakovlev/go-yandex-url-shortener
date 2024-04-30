@@ -17,9 +17,11 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/controller"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
+	shortenerRepository "github.com/romanyakovlev/go-yandex-url-shortener/internal/repository/shortener"
+	userRepository "github.com/romanyakovlev/go-yandex-url-shortener/internal/repository/user"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/server"
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
+	shortenerService "github.com/romanyakovlev/go-yandex-url-shortener/internal/service/shortener"
+	userService "github.com/romanyakovlev/go-yandex-url-shortener/internal/service/user"
 )
 
 var ts *httptest.Server
@@ -27,13 +29,15 @@ var ts *httptest.Server
 func TestMain(m *testing.M) {
 	sugar := logger.GetLogger()
 	serverConfig := config.GetConfig(sugar)
-	repo := repository.MemoryURLRepository{URLMap: make(map[string]string)}
-	shortener := service.NewURLShortenerService(serverConfig, repo)
+	shortenerrepo := shortenerRepository.MemoryURLRepository{}
+	shortener := shortenerService.NewURLShortenerService(serverConfig, &shortenerrepo)
+	userrepo := userRepository.MemoryUserRepository{Users: make(map[int]models.User)}
+	user := userService.NewUserService(serverConfig, &userrepo)
 	URLCtrl := controller.NewURLShortenerController(shortener, sugar)
 	db, _ := sql.Open("pgx", serverConfig.DatabaseDSN)
 	defer db.Close()
 	HealthCtrl := controller.NewHealthCheckController(db)
-	router := server.Router(URLCtrl, HealthCtrl, sugar)
+	router := server.Router(URLCtrl, HealthCtrl, user, sugar)
 	ts = httptest.NewServer(router)
 
 	exitCode := m.Run()

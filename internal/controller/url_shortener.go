@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/middlewares"
 	"io"
 	"net/http"
 
@@ -15,10 +16,15 @@ import (
 )
 
 type URLShortener interface {
-	AddURL(urlStr string) (string, error)
-	AddBatchURL(batchArray []models.ShortenBatchURLRequestElement) ([]models.ShortenBatchURLResponseElement, error)
+	AddURL(urlStr string) (models.SavedURL, error)
+	AddBatchURL(batchArray []models.ShortenBatchURLRequestElement) ([]models.CorrelationSavedURL, error)
+	AddUserToURL(SavedURL models.SavedURL, user models.User) error
+	AddBatchUserToURL(SavedURLs []models.SavedURL, user models.User) error
 	GetURL(shortURL string) (string, bool)
+	GetURLByUser(user models.User) ([]models.URLByUserResponseElement, bool)
 	GetURLByOriginalURL(originalURL string) (string, bool)
+	ConvertCorrelationSavedURLToResponse(correlationSavedURLs []models.CorrelationSavedURL) []models.ShortenBatchURLResponseElement
+	ConvertCorrelationSavedURLToSavedURL(correlationSavedURLs []models.CorrelationSavedURL) []models.SavedURL
 }
 
 type URLShortenerController struct {
@@ -29,7 +35,7 @@ type URLShortenerController struct {
 func (c URLShortenerController) SaveURL(w http.ResponseWriter, r *http.Request) {
 	bytes, _ := io.ReadAll(r.Body)
 	urlStr := string(bytes)
-	shortURL, err := c.shortener.AddURL(urlStr)
+	savedURL, err := c.shortener.AddURL(urlStr)
 	if err != nil {
 		var appError *apperrors.OriginalURLAlreadyExists
 		if ok := errors.As(err, &appError); ok {
@@ -48,7 +54,14 @@ func (c URLShortenerController) SaveURL(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "%v", shortURL)
+	fmt.Fprintf(w, "%v", savedURL.ShortURL)
+	user, _ := middlewares.GetUserFromContext(r.Context())
+	err = c.shortener.AddUserToURL(savedURL, user)
+	if err != nil {
+		c.logger.Debugf("something went wrong: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func (c URLShortenerController) GetURLByID(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +75,22 @@ func (c URLShortenerController) GetURLByID(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+func (c URLShortenerController) GetURLByUser(w http.ResponseWriter, r *http.Request) {
+	user, _ := middlewares.GetUserFromContext(r.Context())
+	resp, ok := c.shortener.GetURLByUser(user)
+	if ok {
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		if err := enc.Encode(resp); err != nil {
+			c.logger.Debugf("cannot encode response JSON body: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	} else {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+}
+
 func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	var req models.ShortenURLRequest
 	dec := json.NewDecoder(r.Body)
@@ -70,7 +99,7 @@ func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	shortURL, err := c.shortener.AddURL(req.URL)
+	savedURL, err := c.shortener.AddURL(req.URL)
 	if err != nil {
 		var appError *apperrors.OriginalURLAlreadyExists
 		if ok := errors.As(err, &appError); ok {
@@ -95,8 +124,15 @@ func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Reques
 		}
 		return
 	}
-	resp := models.ShortenURLResponse{Result: shortURL}
+	resp := models.ShortenURLResponse{Result: savedURL.ShortURL}
 	w.Header().Set("Content-Type", "application/json")
+	user, _ := middlewares.GetUserFromContext(r.Context())
+	err = c.shortener.AddUserToURL(savedURL, user)
+	if err != nil {
+		c.logger.Debugf("something went wrong: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusCreated)
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(resp); err != nil {
@@ -114,9 +150,18 @@ func (c URLShortenerController) ShortenBatchURL(w http.ResponseWriter, r *http.R
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	resp, err := c.shortener.AddBatchURL(req)
+	user, _ := middlewares.GetUserFromContext(r.Context())
+	correlationSavedURLs, err := c.shortener.AddBatchURL(req)
+	resp := c.shortener.ConvertCorrelationSavedURLToResponse(correlationSavedURLs)
 	if err != nil {
 		c.logger.Debugf("Shortener service error: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	savedURLs := c.shortener.ConvertCorrelationSavedURLToSavedURL(correlationSavedURLs)
+	err = c.shortener.AddBatchUserToURL(savedURLs, user)
+	if err != nil {
+		c.logger.Debugf("something went wrong: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
