@@ -1,4 +1,4 @@
-package shortener
+package repository
 
 import (
 	"bufio"
@@ -13,6 +13,11 @@ import (
 )
 
 type FileURLRepository struct {
+	filePath string
+	Logger   *logger.Logger
+}
+
+type FileUserRepository struct {
 	filePath string
 	Logger   *logger.Logger
 }
@@ -45,11 +50,11 @@ func (r *FileURLRepository) newWriter(truncateModes ...bool) (*bufio.Writer, *os
 	return bufio.NewWriter(file), file, nil
 }
 
-func (r FileURLRepository) Find(shortURL string) (string, bool) {
+func (r FileURLRepository) Find(shortURL string) (models.URLRow, bool) {
 	scanner, file, err := r.newScanner()
 	if err != nil {
 		r.Logger.Errorf("Error creating scanner: %v", err)
-		return "", false
+		return models.URLRow{}, false
 	}
 	defer file.Close()
 	for scanner.Scan() {
@@ -58,13 +63,13 @@ func (r FileURLRepository) Find(shortURL string) (string, bool) {
 		jsonErr := json.Unmarshal([]byte(line), &urlRow)
 		if jsonErr != nil {
 			r.Logger.Debugf("cannot decode request JSON body: %s", jsonErr)
-			return "", false
+			return models.URLRow{}, false
 		}
 		if urlRow.ShortURL == shortURL {
-			return urlRow.OriginalURL, true
+			return urlRow, true
 		}
 	}
-	return "", false
+	return models.URLRow{}, false
 }
 
 func (r FileURLRepository) FindByOriginalURL(originalURL string) (string, bool) {
@@ -89,7 +94,7 @@ func (r FileURLRepository) FindByOriginalURL(originalURL string) (string, bool) 
 	return "", false
 }
 
-func (r *FileURLRepository) FindByUserID(userID int) ([]models.URLRow, bool) {
+func (r *FileURLRepository) FindByUserID(userID uuid.UUID) ([]models.URLRow, bool) {
 	var urlRows []models.URLRow
 	scanner, file, err := r.newScanner()
 	if err != nil {
@@ -123,7 +128,7 @@ func (r FileURLRepository) Save(url models.URLToSave) (uuid.UUID, error) {
 	defer file.Close()
 
 	UUID := uuid.New()
-	URLRowObject := models.URLRow{UUID: UUID, ShortURL: url.RandomPath, OriginalURL: url.URLStr}
+	URLRowObject := models.URLRow{UUID: UUID, ShortURL: url.RandomPath, OriginalURL: url.URLStr, DeletedFlag: false}
 	data, err := json.Marshal(URLRowObject)
 	if err != nil {
 		r.Logger.Debugf("Cannot encode json: %s", err)
@@ -170,7 +175,12 @@ func (r FileURLRepository) BatchSave(urls []models.URLToSave) ([]uuid.UUID, erro
 	return UUIDs, nil
 }
 
-func (r *FileURLRepository) UpdateUser(savedURLUUID uuid.UUID, userID int) error {
+func (r *FileURLRepository) BatchDelete(urls []string, userID uuid.UUID) error {
+	uuidMap := make(map[string]bool)
+	for _, shortURL := range urls {
+		uuidMap[shortURL] = true
+	}
+
 	var urlRows []models.URLRow
 	scanner, file, err := r.newScanner()
 	if err != nil {
@@ -186,8 +196,8 @@ func (r *FileURLRepository) UpdateUser(savedURLUUID uuid.UUID, userID int) error
 			continue
 		}
 
-		if urlRow.UUID == savedURLUUID {
-			urlRow.UserID = userID
+		if _, exists := uuidMap[urlRow.ShortURL]; exists {
+			urlRow.DeletedFlag = true
 		}
 
 		urlRows = append(urlRows, urlRow)
@@ -221,7 +231,86 @@ func (r *FileURLRepository) UpdateUser(savedURLUUID uuid.UUID, userID int) error
 	return nil
 }
 
-func (r *FileURLRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID int) error {
+func (r *FileUserRepository) newScanner() (*bufio.Scanner, *os.File, error) {
+	file, err := os.Open(r.filePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	return bufio.NewScanner(file), file, nil
+}
+
+func (r *FileUserRepository) newWriter(truncateModes ...bool) (*bufio.Writer, *os.File, error) {
+	truncateMode := false
+	if len(truncateModes) > 0 {
+		truncateMode = truncateModes[0]
+	}
+
+	flags := os.O_WRONLY | os.O_CREATE
+	if truncateMode {
+		flags |= os.O_TRUNC
+	} else {
+		flags |= os.O_APPEND
+	}
+
+	file, err := os.OpenFile(r.filePath, flags, 0666)
+	if err != nil {
+		return nil, nil, err
+	}
+	return bufio.NewWriter(file), file, nil
+}
+
+func (r *FileUserRepository) UpdateUser(savedURLUUID uuid.UUID, userID uuid.UUID) error {
+	var urlRows []models.URLRow
+	scanner, file, err := r.newScanner()
+	if err != nil {
+		r.Logger.Errorf("Error creating scanner: %v", err)
+		return err
+	}
+	defer file.Close()
+	for scanner.Scan() {
+		var urlRow models.URLRow
+		line := scanner.Text()
+		if err := json.Unmarshal([]byte(line), &urlRow); err != nil {
+			r.Logger.Debugf("Cannot decode line JSON: %s", err)
+			continue
+		}
+
+		if urlRow.UUID == savedURLUUID {
+			urlRow.UUID = userID
+		}
+
+		urlRows = append(urlRows, urlRow)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	writer, file, err := r.newWriter(true)
+	if err != nil {
+		r.Logger.Errorf("Error creating writer: %v", err)
+		return err
+	}
+	defer file.Close()
+	for _, urlRow := range urlRows {
+		data, err := json.Marshal(urlRow)
+		if err != nil {
+			r.Logger.Debugf("Cannot encode URLRow to JSON: %s", err)
+			return err
+		}
+		if _, err := writer.WriteString(string(data) + "\n"); err != nil {
+			r.Logger.Debugf("Cannot write URLRow to file: %s", err)
+			return err
+		}
+	}
+	if err := writer.Flush(); err != nil {
+		r.Logger.Debugf("Error flushing writer: %s", err)
+		return err
+	}
+
+	return nil
+}
+
+func (r *FileUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID uuid.UUID) error {
 	uuidMap := make(map[uuid.UUID]bool)
 	for _, id := range savedURLUUIDs {
 		uuidMap[id] = true
@@ -277,36 +366,10 @@ func (r *FileURLRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID in
 	return nil
 }
 
-func NewFileScanner(fileName string) (*bufio.Scanner, error) {
-	file, err := os.OpenFile(fileName, os.O_RDONLY|os.O_CREATE, 0666)
-	if err != nil {
-		return nil, err
-	}
-	return bufio.NewScanner(file), nil
-}
-
-func NewFileWriter(fileName string) (*bufio.Writer, error) {
-	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		return nil, err
-	}
-	writer := bufio.NewWriter(file)
-	return writer, nil
-}
-
 func NewFileURLRepository(serverConfig config.Config, sugar *logger.Logger) (*FileURLRepository, error) {
-	/*
-		fileScanner, err := NewFileScanner(serverConfig.FileStoragePath)
-		if err != nil {
-			sugar.Errorf("Server error: %v", err)
-			return nil, err
-		}
-		fileWriter, err := NewFileWriter(serverConfig.FileStoragePath)
-		if err != nil {
-			sugar.Errorf("Server error: %v", err)
-			return nil, err
-		}
-
-	*/
 	return &FileURLRepository{filePath: serverConfig.FileStoragePath, Logger: sugar}, nil
+}
+
+func NewFileUserRepository(serverConfig config.Config, sugar *logger.Logger) (*FileUserRepository, error) {
+	return &FileUserRepository{filePath: serverConfig.FileStoragePath, Logger: sugar}, nil
 }

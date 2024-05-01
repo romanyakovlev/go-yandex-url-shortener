@@ -1,11 +1,11 @@
 -- +goose Up
 -- +goose StatementBegin
 ALTER TABLE url_rows
-    ADD COLUMN user_id UUID;
+    ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT FALSE;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 ALTER TABLE url_rows
-    DROP COLUMN user_id;
+    DROP COLUMN is_deleted;
 -- +goose StatementEnd

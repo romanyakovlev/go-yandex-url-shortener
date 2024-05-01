@@ -2,6 +2,7 @@ package service
 
 import (
 	"github.com/google/uuid"
+
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 	"github.com/romanyakovlev/go-yandex-url-shortener/pkg/utils"
@@ -10,21 +11,26 @@ import (
 type URLRepository interface {
 	Save(models.URLToSave) (uuid.UUID, error)
 	BatchSave([]models.URLToSave) ([]uuid.UUID, error)
-	Find(shortURL string) (string, bool)
-	FindByUserID(userID int) ([]models.URLRow, bool)
+	BatchDelete(urls []string, userID uuid.UUID) error
+	Find(shortURL string) (models.URLRow, bool)
+	FindByUserID(userID uuid.UUID) ([]models.URLRow, bool)
 	FindByOriginalURL(originalURL string) (string, bool)
-	UpdateUser(SavedURLUUID uuid.UUID, userID int) error
-	UpdateBatchUser(SavedURLUUIDs []uuid.UUID, userID int) error
+}
+
+type UserRepository interface {
+	UpdateUser(SavedURLUUID uuid.UUID, userID uuid.UUID) error
+	UpdateBatchUser(SavedURLUUIDs []uuid.UUID, userID uuid.UUID) error
 }
 
 type URLShortenerService struct {
-	config config.Config
-	repo   URLRepository
+	config   config.Config
+	urlRepo  URLRepository
+	userRepo UserRepository
 }
 
 func (s URLShortenerService) AddURL(urlStr string) (models.SavedURL, error) {
 	randomPath := utils.RandStringBytes(8)
-	UUID, err := s.repo.Save(models.URLToSave{RandomPath: randomPath, URLStr: urlStr})
+	UUID, err := s.urlRepo.Save(models.URLToSave{RandomPath: randomPath, URLStr: urlStr})
 	if err != nil {
 		return models.SavedURL{}, err
 	}
@@ -38,7 +44,7 @@ func (s URLShortenerService) AddBatchURL(batchArray []models.ShortenBatchURLRequ
 		batchToSave = append(batchToSave, models.URLToSave{RandomPath: randomPath, URLStr: elem.OriginalURL})
 	}
 
-	UUIDs, err := s.repo.BatchSave(batchToSave)
+	UUIDs, err := s.urlRepo.BatchSave(batchToSave)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +65,7 @@ func (s URLShortenerService) AddBatchURL(batchArray []models.ShortenBatchURLRequ
 }
 
 func (s URLShortenerService) AddUserToURL(SavedURL models.SavedURL, user models.User) error {
-	err := s.repo.UpdateUser(SavedURL.UUID, user.ID)
+	err := s.userRepo.UpdateUser(SavedURL.UUID, user.UUID)
 	if err != nil {
 		return err
 	}
@@ -72,21 +78,21 @@ func (s URLShortenerService) AddBatchUserToURL(SavedURLs []models.SavedURL, user
 		UUIDs = append(UUIDs, savedURL.UUID)
 	}
 
-	err := s.repo.UpdateBatchUser(UUIDs, user.ID)
+	err := s.userRepo.UpdateBatchUser(UUIDs, user.UUID)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s URLShortenerService) GetURL(shortURL string) (string, bool) {
-	value, ok := s.repo.Find(shortURL)
-	return value, ok
+func (s URLShortenerService) GetURL(shortURL string) (models.URLRow, bool) {
+	row, ok := s.urlRepo.Find(shortURL)
+	return row, ok
 }
 
 func (s URLShortenerService) GetURLByUser(user models.User) ([]models.URLByUserResponseElement, bool) {
 	respElements := []models.URLByUserResponseElement{}
-	URLRows, ok := s.repo.FindByUserID(user.ID)
+	URLRows, ok := s.urlRepo.FindByUserID(user.UUID)
 	for _, URLRow := range URLRows {
 		respElements = append(respElements, models.URLByUserResponseElement{
 			ShortURL:    s.config.BaseURL + "/" + URLRow.ShortURL,
@@ -97,8 +103,13 @@ func (s URLShortenerService) GetURLByUser(user models.User) ([]models.URLByUserR
 }
 
 func (s URLShortenerService) GetURLByOriginalURL(originalURL string) (string, bool) {
-	randomPath, ok := s.repo.FindByOriginalURL(originalURL)
+	randomPath, ok := s.urlRepo.FindByOriginalURL(originalURL)
 	return s.config.BaseURL + "/" + randomPath, ok
+}
+
+func (s URLShortenerService) DeleteBatchURL(urls []string, user models.User) error {
+	err := s.urlRepo.BatchDelete(urls, user.UUID)
+	return err
 }
 
 func (s URLShortenerService) ConvertCorrelationSavedURLToResponse(correlationSavedURLs []models.CorrelationSavedURL) []models.ShortenBatchURLResponseElement {
@@ -126,9 +137,10 @@ func (s URLShortenerService) ConvertCorrelationSavedURLToSavedURL(correlationSav
 	return elements
 }
 
-func NewURLShortenerService(config config.Config, repo URLRepository) *URLShortenerService {
+func NewURLShortenerService(config config.Config, urlRepo URLRepository, userRepo UserRepository) *URLShortenerService {
 	return &URLShortenerService{
-		config: config,
-		repo:   repo,
+		config:   config,
+		urlRepo:  urlRepo,
+		userRepo: userRepo,
 	}
 }

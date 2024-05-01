@@ -26,7 +26,7 @@ type URLToSave struct {
 }
 
 type User struct {
-	ID    int
+	UUID  uuid.UUID
 	Token string
 }
 
@@ -49,5 +49,16 @@ type URLRow struct {
 	UUID        uuid.UUID `json:"uuid" db:"uuid"`
 	ShortURL    string    `json:"short_url" db:"short_url"`
 	OriginalURL string    `json:"original_url" db:"original_url"`
-	UserID      int       `json:"user_id" db:"user_id"`
+	DeletedFlag bool      `db:"is_deleted"`
+	UserID      uuid.UUID `json:"user_id" db:"user_id"`
+}
+
+type SharedURLRows struct {
+	URLRows []URLRow
+}
+
+func NewSharedURLRows() *SharedURLRows {
+	return &SharedURLRows{
+		URLRows: make([]URLRow, 0),
+	}
 }

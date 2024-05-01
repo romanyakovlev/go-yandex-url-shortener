@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/romanyakovlev/go-yandex-url-shortener/internal/middlewares"
 	"io"
 	"net/http"
 
@@ -12,7 +11,9 @@ import (
 
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/apperrors"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/middlewares"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/workers"
 )
 
 type URLShortener interface {
@@ -20,15 +21,17 @@ type URLShortener interface {
 	AddBatchURL(batchArray []models.ShortenBatchURLRequestElement) ([]models.CorrelationSavedURL, error)
 	AddUserToURL(SavedURL models.SavedURL, user models.User) error
 	AddBatchUserToURL(SavedURLs []models.SavedURL, user models.User) error
-	GetURL(shortURL string) (string, bool)
+	GetURL(shortURL string) (models.URLRow, bool)
 	GetURLByUser(user models.User) ([]models.URLByUserResponseElement, bool)
 	GetURLByOriginalURL(originalURL string) (string, bool)
+	DeleteBatchURL(urls []string, user models.User) error
 	ConvertCorrelationSavedURLToResponse(correlationSavedURLs []models.CorrelationSavedURL) []models.ShortenBatchURLResponseElement
 	ConvertCorrelationSavedURLToSavedURL(correlationSavedURLs []models.CorrelationSavedURL) []models.SavedURL
 }
 
 type URLShortenerController struct {
 	shortener URLShortener
+	worker    *workers.URLDeletionWorker
 	logger    *logger.Logger
 }
 
@@ -64,11 +67,37 @@ func (c URLShortenerController) SaveURL(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+func (c URLShortenerController) DeleteBatchURL(w http.ResponseWriter, r *http.Request) {
+	var urls []string
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&urls); err != nil {
+		c.logger.Debugf("cannot decode request JSON body: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	user, _ := middlewares.GetUserFromContext(r.Context())
+	req := workers.DeletionRequest{
+		User: user,
+		URLs: urls,
+	}
+	if err := c.worker.SendDeletionRequestToWorker(req); err != nil {
+		c.logger.Debugf("error send to deletion worker request: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else {
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
 func (c URLShortenerController) GetURLByID(w http.ResponseWriter, r *http.Request) {
 	shortURL := chi.URLParam(r, "shortURL")
-	value, ok := c.shortener.GetURL(shortURL)
+	urlRow, ok := c.shortener.GetURL(shortURL)
+	if urlRow.DeletedFlag {
+		w.WriteHeader(http.StatusGone)
+		return
+	}
 	if ok {
-		w.Header().Set("Location", value)
+		w.Header().Set("Location", urlRow.OriginalURL)
 		w.WriteHeader(http.StatusTemporaryRedirect)
 	} else {
 		w.WriteHeader(http.StatusBadRequest)
@@ -175,6 +204,6 @@ func (c URLShortenerController) ShortenBatchURL(w http.ResponseWriter, r *http.R
 	}
 }
 
-func NewURLShortenerController(shortener URLShortener, logger *logger.Logger) *URLShortenerController {
-	return &URLShortenerController{shortener: shortener, logger: logger}
+func NewURLShortenerController(shortener URLShortener, logger *logger.Logger, worker *workers.URLDeletionWorker) *URLShortenerController {
+	return &URLShortenerController{shortener: shortener, logger: logger, worker: worker}
 }

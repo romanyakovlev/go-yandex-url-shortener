@@ -2,8 +2,10 @@ package jwt
 
 import (
 	"fmt"
-	"github.com/golang-jwt/jwt/v4"
 	"time"
+
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 )
 
 const TokenExp = time.Hour * 24 * 7
@@ -11,10 +13,10 @@ const SecretKey = "supersecretkey"
 
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID int
+	UserID uuid.UUID
 }
 
-func BuildJWTString(UserID int) (string, error) {
+func BuildJWTString(UserID uuid.UUID) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TokenExp)),
@@ -47,7 +49,7 @@ func GetExpiresAt(tokenString string) *jwt.NumericDate {
 	return claims.ExpiresAt
 }
 
-func GetUserID(tokenString string) int {
+func GetUserID(tokenString string) uuid.UUID {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims,
 		func(t *jwt.Token) (interface{}, error) {
@@ -57,7 +59,7 @@ func GetUserID(tokenString string) int {
 			return []byte(SecretKey), nil
 		})
 	if err != nil || !token.Valid {
-		return -1
+		return uuid.UUID{}
 	}
 	return claims.UserID
 }

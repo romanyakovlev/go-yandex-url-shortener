@@ -1,4 +1,4 @@
-package shortener
+package repository
 
 import (
 	"database/sql"
@@ -17,14 +17,18 @@ type DBURLRepository struct {
 	db *sql.DB
 }
 
-func (r DBURLRepository) Find(shortURL string) (string, bool) {
+type DBUserRepository struct {
+	db *sql.DB
+}
+
+func (r DBURLRepository) Find(shortURL string) (models.URLRow, bool) {
 	var urlRow models.URLRow
-	row := r.db.QueryRow("SELECT uuid, short_url, original_url FROM url_rows where short_url = $1", shortURL)
-	err := row.Scan(&urlRow.UUID, &urlRow.ShortURL, &urlRow.OriginalURL)
+	row := r.db.QueryRow("SELECT uuid, short_url, original_url, is_deleted FROM url_rows where short_url = $1", shortURL)
+	err := row.Scan(&urlRow.UUID, &urlRow.ShortURL, &urlRow.OriginalURL, &urlRow.DeletedFlag)
 	if err != nil {
-		return "", false
+		return models.URLRow{}, false
 	}
-	return urlRow.OriginalURL, true
+	return urlRow, true
 }
 
 func (r DBURLRepository) FindByOriginalURL(originalURL string) (string, bool) {
@@ -37,7 +41,7 @@ func (r DBURLRepository) FindByOriginalURL(originalURL string) (string, bool) {
 	return urlRow.ShortURL, true
 }
 
-func (r *DBURLRepository) FindByUserID(userID int) ([]models.URLRow, bool) {
+func (r *DBURLRepository) FindByUserID(userID uuid.UUID) ([]models.URLRow, bool) {
 	var urlRows []models.URLRow
 
 	rows, err := r.db.Query("SELECT uuid, short_url, original_url FROM url_rows WHERE user_id = $1", userID)
@@ -102,7 +106,23 @@ func (r DBURLRepository) BatchSave(urls []models.URLToSave) ([]uuid.UUID, error)
 	return UUIDs, tx.Commit()
 }
 
-func (r DBURLRepository) UpdateUser(savedURLUUID uuid.UUID, userID int) error {
+func (r *DBURLRepository) BatchDelete(urls []string, userID uuid.UUID) error {
+	query := `UPDATE url_rows SET is_deleted = true WHERE user_id = $1 AND short_url = ANY($2)`
+
+	result, err := r.db.Exec(query, userID, urls)
+	if err != nil {
+		return err
+	}
+
+	_, err = result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r DBUserRepository) UpdateUser(savedURLUUID uuid.UUID, userID uuid.UUID) error {
 	query := "UPDATE url_rows SET user_id = $1 WHERE uuid = $2"
 	result, err := r.db.Exec(query, userID, savedURLUUID)
 	if err != nil {
@@ -118,7 +138,7 @@ func (r DBURLRepository) UpdateUser(savedURLUUID uuid.UUID, userID int) error {
 	return nil
 }
 
-func (r *DBURLRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID int) error {
+func (r *DBUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID uuid.UUID) error {
 	query := `UPDATE url_rows SET user_id = $1 WHERE uuid = ANY($2)`
 
 	result, err := r.db.Exec(query, userID, savedURLUUIDs)
@@ -140,4 +160,8 @@ func (r *DBURLRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID int)
 
 func NewDBURLRepository(db *sql.DB) (*DBURLRepository, error) {
 	return &DBURLRepository{db: db}, nil
+}
+
+func NewDBUserRepository(db *sql.DB) (*DBUserRepository, error) {
+	return &DBUserRepository{db: db}, nil
 }
