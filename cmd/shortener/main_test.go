@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -20,6 +21,7 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/server"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/workers"
 )
 
 var ts *httptest.Server
@@ -27,13 +29,20 @@ var ts *httptest.Server
 func TestMain(m *testing.M) {
 	sugar := logger.GetLogger()
 	serverConfig := config.GetConfig(sugar)
-	repo := repository.MemoryURLRepository{URLMap: make(map[string]string)}
-	shortener := service.NewURLShortenerService(serverConfig, repo)
-	URLCtrl := controller.NewURLShortenerController(shortener, sugar)
+	sharedURLRows := models.NewSharedURLRows()
+	shortenerrepo := repository.MemoryURLRepository{SharedURLRows: sharedURLRows}
+	userrepo := repository.MemoryUserRepository{SharedURLRows: sharedURLRows}
+	shortener := service.NewURLShortenerService(serverConfig, &shortenerrepo, &userrepo)
+	worker := workers.InitURLDeletionWorker(shortener)
+	URLCtrl := controller.NewURLShortenerController(shortener, sugar, worker)
 	db, _ := sql.Open("pgx", serverConfig.DatabaseDSN)
 	defer db.Close()
 	HealthCtrl := controller.NewHealthCheckController(db)
 	router := server.Router(URLCtrl, HealthCtrl, sugar)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go worker.StartDeletionWorker(ctx)
+	go worker.StartErrorListener(ctx)
 	ts = httptest.NewServer(router)
 
 	exitCode := m.Run()

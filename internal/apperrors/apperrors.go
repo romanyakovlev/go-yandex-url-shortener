@@ -1,6 +1,8 @@
 package apperrors
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type OriginalURLAlreadyExists struct {
 	URL string
