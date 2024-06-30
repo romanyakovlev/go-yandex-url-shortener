@@ -1,3 +1,4 @@
+// Package service содержит бизнес-логику по управлению сервисом сокращения ссылок
 package service
 
 import (
@@ -8,20 +9,32 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/pkg/utils"
 )
 
+// URLRepository - интерфейс репозитория url
 type URLRepository interface {
+	// Save - сохраняет url
 	Save(models.URLToSave) (uuid.UUID, error)
+	// BatchSave - сохраняет список url
 	BatchSave([]models.URLToSave) ([]uuid.UUID, error)
+	// BatchDelete - удаляет список url
 	BatchDelete(urls []string, userID uuid.UUID) error
+	// Find - выполняет поиск url по short url
 	Find(shortURL string) (models.URLRow, bool)
+	// FindByUserID - поиск всех url для пользователя
 	FindByUserID(userID uuid.UUID) ([]models.URLRow, bool)
+	// FindByOriginalURL - выполняет поиск url по original url
 	FindByOriginalURL(originalURL string) (string, bool)
 }
 
+// UserRepository - интерфейс репозитория пользователя
 type UserRepository interface {
+	// UpdateUser - привязка url пользователю
 	UpdateUser(SavedURLUUID uuid.UUID, userID uuid.UUID) error
+	// UpdateBatchUser - привязка списка url пользователю
 	UpdateBatchUser(SavedURLUUIDs []uuid.UUID, userID uuid.UUID) error
 }
 
+// URLShortenerService использует 2 репозитория: URLRepository, UserRepository
+// Имеет 3 реализации: DB, file и memory
 type URLShortenerService struct {
 	config   config.Config
 	urlRepo  URLRepository
@@ -112,7 +125,7 @@ func (s URLShortenerService) DeleteBatchURL(urls []string, user models.User) err
 	return err
 }
 
-func (s URLShortenerService) ConvertCorrelationSavedURLToResponse(correlationSavedURLs []models.CorrelationSavedURL) []models.ShortenBatchURLResponseElement {
+func (s URLShortenerService) ConvertCorrelationSavedURLsToResponse(correlationSavedURLs []models.CorrelationSavedURL) []models.ShortenBatchURLResponseElement {
 	var responseElements []models.ShortenBatchURLResponseElement
 
 	for _, item := range correlationSavedURLs {
@@ -126,7 +139,7 @@ func (s URLShortenerService) ConvertCorrelationSavedURLToResponse(correlationSav
 	return responseElements
 }
 
-func (s URLShortenerService) ConvertCorrelationSavedURLToSavedURL(correlationSavedURLs []models.CorrelationSavedURL) []models.SavedURL {
+func (s URLShortenerService) ConvertCorrelationSavedURLsToSavedURL(correlationSavedURLs []models.CorrelationSavedURL) []models.SavedURL {
 	var elements []models.SavedURL
 
 	for _, item := range correlationSavedURLs {

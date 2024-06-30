@@ -1,3 +1,5 @@
+// Модуль apperrors содержит ошибки приложения
+
 package apperrors
 
 import (

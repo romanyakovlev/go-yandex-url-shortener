@@ -1,3 +1,9 @@
+// Модуль config создает конфиг приложения
+// Доступные пути конфигурации (указаны в порядке приоритета):
+// 1. Поиск Переменной окружения
+// 2. поиск аргумента командой строки
+// 3. значение по-умолчанию
+
 package config
 
 import (
@@ -23,11 +29,16 @@ type envConfig struct {
 	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
 
+// Config Доступные агрументы для конфигурации
 type Config struct {
-	ServerAddress   string
-	BaseURL         string
+	// ServerAddress - Адрес запуска HTTP-сервера
+	ServerAddress string
+	// BaseURL - Базовый адрес результирующего сокращённого URL
+	BaseURL string
+	// FileStoragePath - Путь для сохраниния данных в файле
 	FileStoragePath string
-	DatabaseDSN     string
+	// DatabaseDSN - Строка с адресом подключения к БД
+	DatabaseDSN string
 }
 
 var onceParseEnvs sync.Once

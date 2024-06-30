@@ -1,3 +1,4 @@
+// Package controller пакет с хэндлерами http-запросов
 package controller
 
 import (
@@ -16,25 +17,40 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/workers"
 )
 
+// URLShortener Интерфейс сервиса сокращения ссылок
 type URLShortener interface {
+	// AddURL добавление url
 	AddURL(urlStr string) (models.SavedURL, error)
+	// AddBatchURL добавление списка url
 	AddBatchURL(batchArray []models.ShortenBatchURLRequestElement) ([]models.CorrelationSavedURL, error)
+	// AddUserToURL присвоение url пользователю
 	AddUserToURL(SavedURL models.SavedURL, user models.User) error
+	// AddBatchUserToURL присвоение списка url пользователю
 	AddBatchUserToURL(SavedURLs []models.SavedURL, user models.User) error
+	// GetURL Получение url по короткой ссылке
 	GetURL(shortURL string) (models.URLRow, bool)
+	// GetURLByUser Получение всех url, присвоенных пользователю
 	GetURLByUser(user models.User) ([]models.URLByUserResponseElement, bool)
+	// GetURLByOriginalURL Получение короткой ссылки для url
 	GetURLByOriginalURL(originalURL string) (string, bool)
+	// DeleteBatchURL удаление списка url
 	DeleteBatchURL(urls []string, user models.User) error
-	ConvertCorrelationSavedURLToResponse(correlationSavedURLs []models.CorrelationSavedURL) []models.ShortenBatchURLResponseElement
-	ConvertCorrelationSavedURLToSavedURL(correlationSavedURLs []models.CorrelationSavedURL) []models.SavedURL
+	// ConvertCorrelationSavedURLsToResponse преобразование модели данных []models.CorrelationSavedURL
+	// в response-модель []models.ShortenBatchURLResponseElement для API-хелдлера
+	ConvertCorrelationSavedURLsToResponse(correlationSavedURLs []models.CorrelationSavedURL) []models.ShortenBatchURLResponseElement
+	// ConvertCorrelationSavedURLsToSavedURL преобразование модели данных []models.CorrelationSavedURL
+	// в модель []models.SavedURL для API-хелдлера
+	ConvertCorrelationSavedURLsToSavedURL(correlationSavedURLs []models.CorrelationSavedURL) []models.SavedURL
 }
 
+// URLShortenerController Контроллер для взаимодействия с внутренним сервисом сокращения ссылок URLShortener
 type URLShortenerController struct {
 	shortener URLShortener
 	worker    *workers.URLDeletionWorker
 	logger    *logger.Logger
 }
 
+// SaveURL Принимает url и возвращает короткую ссылку (ожидает url в text/plain body)
 func (c URLShortenerController) SaveURL(w http.ResponseWriter, r *http.Request) {
 	bytes, _ := io.ReadAll(r.Body)
 	urlStr := string(bytes)
@@ -67,6 +83,7 @@ func (c URLShortenerController) SaveURL(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// DeleteBatchURL Удаляет список url
 func (c URLShortenerController) DeleteBatchURL(w http.ResponseWriter, r *http.Request) {
 	var urls []string
 	dec := json.NewDecoder(r.Body)
@@ -89,6 +106,7 @@ func (c URLShortenerController) DeleteBatchURL(w http.ResponseWriter, r *http.Re
 	}
 }
 
+// GetURLByID возвращает url на основе короткой ссылки
 func (c URLShortenerController) GetURLByID(w http.ResponseWriter, r *http.Request) {
 	shortURL := chi.URLParam(r, "shortURL")
 	urlRow, ok := c.shortener.GetURL(shortURL)
@@ -104,6 +122,7 @@ func (c URLShortenerController) GetURLByID(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// GetURLByUser возвращает список url, которые пользователь загрузил в систему
 func (c URLShortenerController) GetURLByUser(w http.ResponseWriter, r *http.Request) {
 	user, _ := middlewares.GetUserFromContext(r.Context())
 	resp, ok := c.shortener.GetURLByUser(user)
@@ -120,6 +139,7 @@ func (c URLShortenerController) GetURLByUser(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// ShortenURL Принимает url и возвращает короткую ссылку (ожидает url в json body)
 func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	var req models.ShortenURLRequest
 	dec := json.NewDecoder(r.Body)
@@ -171,6 +191,7 @@ func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// ShortenBatchURL Принимает список url в формате json и возвращает список коротких ссылок
 func (c URLShortenerController) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
 	var req []models.ShortenBatchURLRequestElement
 	dec := json.NewDecoder(r.Body)
@@ -181,13 +202,13 @@ func (c URLShortenerController) ShortenBatchURL(w http.ResponseWriter, r *http.R
 	}
 	user, _ := middlewares.GetUserFromContext(r.Context())
 	correlationSavedURLs, err := c.shortener.AddBatchURL(req)
-	resp := c.shortener.ConvertCorrelationSavedURLToResponse(correlationSavedURLs)
+	resp := c.shortener.ConvertCorrelationSavedURLsToResponse(correlationSavedURLs)
 	if err != nil {
 		c.logger.Debugf("Shortener service error: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	savedURLs := c.shortener.ConvertCorrelationSavedURLToSavedURL(correlationSavedURLs)
+	savedURLs := c.shortener.ConvertCorrelationSavedURLsToSavedURL(correlationSavedURLs)
 	err = c.shortener.AddBatchUserToURL(savedURLs, user)
 	if err != nil {
 		c.logger.Debugf("something went wrong: %s", err)

@@ -1,3 +1,4 @@
+// Package db Пакет инициализации БД
 package db
 
 import (

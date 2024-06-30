@@ -1,3 +1,4 @@
+// Package gzip содержит логику работы с gzip-сжатие
 package gzip
 
 import (

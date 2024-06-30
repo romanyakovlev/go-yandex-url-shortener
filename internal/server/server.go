@@ -1,3 +1,4 @@
+// Package server выполняет инициализацию web-приложения
 package server
 
 import (
@@ -38,7 +39,7 @@ func Router(
 	return r
 }
 
-func initURLRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *models.SharedURLRows, sugar *logger.Logger) (service.URLRepository, error) {
+func InitURLRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *models.SharedURLRows, sugar *logger.Logger) (service.URLRepository, error) {
 	if serverConfig.DatabaseDSN != "" {
 		return repository.NewDBURLRepository(db)
 	} else if serverConfig.FileStoragePath != "" {
@@ -72,7 +73,7 @@ func Run() error {
 	defer DB.Close()
 	sharedURLRows := models.NewSharedURLRows()
 
-	shortenerrepo, err := initURLRepository(serverConfig, DB, sharedURLRows, sugar)
+	shortenerrepo, err := InitURLRepository(serverConfig, DB, sharedURLRows, sugar)
 	if err != nil {
 		sugar.Errorf("Server error: %v", err)
 		return err
