@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/caarlos0/env/v6"
+
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
 )
 
