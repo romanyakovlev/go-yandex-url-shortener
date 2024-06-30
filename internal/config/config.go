@@ -2,9 +2,9 @@ package config
 
 import (
 	"flag"
+	"sync"
 
 	"github.com/caarlos0/env/v6"
-
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
 )
 
@@ -29,24 +29,31 @@ type Config struct {
 	DatabaseDSN     string
 }
 
+var onceParseEnvs sync.Once
+var onceParseFlags sync.Once
+
 func parseEnvs(s *logger.Logger) envConfig {
 	var cfg envConfig
-	err := env.Parse(&cfg)
-	if err != nil {
-		s.Fatal(err)
-	}
+	onceParseEnvs.Do(func() {
+		err := env.Parse(&cfg)
+		if err != nil {
+			s.Fatal(err)
+		}
+	})
 	return cfg
 }
 
 func parseFlags() argConfig {
 	var cfg argConfig
-	// указываем имя флага, значение по умолчанию и описание
-	flag.StringVar(&cfg.flagAAddr, "a", "localhost:8080", "Адрес запуска HTTP-сервера")
-	flag.StringVar(&cfg.flagBAddr, "b", "http://localhost:8080", "Базовый адрес результирующего сокращённого URL")
-	flag.StringVar(&cfg.flagFAddr, "f", "", "Путь для сохраниния данных в файле")
-	flag.StringVar(&cfg.flagDAddr, "d", "", "Строка с адресом подключения к БД")
-	// делаем разбор командной строки
-	flag.Parse()
+	onceParseFlags.Do(func() {
+		// указываем имя флага, значение по умолчанию и описание
+		flag.StringVar(&cfg.flagAAddr, "a", "localhost:8080", "Адрес запуска HTTP-сервера")
+		flag.StringVar(&cfg.flagBAddr, "b", "http://localhost:8080", "Базовый адрес результирующего сокращённого URL")
+		flag.StringVar(&cfg.flagFAddr, "f", "", "Путь для сохраниния данных в файле")
+		flag.StringVar(&cfg.flagDAddr, "d", "", "Строка с адресом подключения к БД")
+		// делаем разбор командной строки
+		flag.Parse()
+	})
 	return cfg
 }
 
