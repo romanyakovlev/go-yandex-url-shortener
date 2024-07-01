@@ -1,8 +1,9 @@
 package models
 
 import (
-	"github.com/google/uuid"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type ShortenURLRequest struct {

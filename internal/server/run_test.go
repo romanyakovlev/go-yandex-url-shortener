@@ -3,6 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"log"
+	"net/http"
+	"time"
+
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/controller"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/db"
@@ -11,9 +15,6 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/workers"
-	"log"
-	"net/http"
-	"time"
 )
 
 func Example() {

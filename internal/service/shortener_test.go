@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
-	"github.com/stretchr/testify/assert"
 )
 
 func setupURLShortenerService() (*URLShortenerService, *models.SharedURLRows) {

@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
 	shortener "github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
-	"github.com/stretchr/testify/assert"
 )
 
 func setupURLShortenerService() (*shortener.URLShortenerService, *models.SharedURLRows) {
