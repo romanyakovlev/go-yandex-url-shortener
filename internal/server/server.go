@@ -20,6 +20,7 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/workers"
 )
 
+// Router настраивает и возвращает маршрутизатор для web-приложения.
 func Router(
 	URLShortenerController *controller.URLShortenerController,
 	HealthCheckController *controller.HealthCheckController,
@@ -39,6 +40,7 @@ func Router(
 	return r
 }
 
+// InitURLRepository инициализирует репозиторий URL в зависимости от конфигурации.
 func InitURLRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *models.SharedURLRows, sugar *logger.Logger) (service.URLRepository, error) {
 	if serverConfig.DatabaseDSN != "" {
 		return repository.NewDBURLRepository(db)
@@ -50,6 +52,7 @@ func InitURLRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *mo
 
 }
 
+// InitURLRepository инициализирует репозиторий пользователя в зависимости от конфигурации.
 func initUserRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *models.SharedURLRows, sugar *logger.Logger) (service.UserRepository, error) {
 	if serverConfig.DatabaseDSN != "" {
 		return repository.NewDBUserRepository(db)
@@ -61,6 +64,7 @@ func initUserRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *m
 
 }
 
+// Run запускает web-приложение.
 func Run() error {
 	sugar := logger.GetLogger()
 	serverConfig := config.GetConfig(sugar)

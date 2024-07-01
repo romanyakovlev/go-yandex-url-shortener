@@ -14,6 +14,7 @@ type contextKey string
 
 const userContextKey contextKey = "currentUser"
 
+// GetUserFromContext получает пользователя из контекста запроса
 func GetUserFromContext(ctx context.Context) (models.User, bool) {
 	user, ok := ctx.Value(userContextKey).(models.User)
 	return user, ok
@@ -45,6 +46,8 @@ func processExistingToken(tokenValue string, w http.ResponseWriter) (models.User
 	return models.User{UUID: userID}, nil
 }
 
+// JWTMiddleware  обеспечивает аутентификацию пользователя
+// с помощью JWT-токенов, хранящихся в куках.
 func JWTMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var user models.User

@@ -8,14 +8,17 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 )
 
+// MemoryURLRepository представляет репозиторий URL, хранящийся в памяти.
 type MemoryURLRepository struct {
-	SharedURLRows *models.SharedURLRows
+	SharedURLRows *models.SharedURLRows // Общий ресурс для хранения URL.
 }
 
+// MemoryUserRepository представляет репозиторий пользователей, хранящийся в памяти.
 type MemoryUserRepository struct {
-	SharedURLRows *models.SharedURLRows
+	SharedURLRows *models.SharedURLRows // Общий ресурс для хранения URL.
 }
 
+// Save сохраняет новый URL в памяти.
 func (r *MemoryURLRepository) Save(url models.URLToSave) (uuid.UUID, error) {
 	UUID := uuid.New()
 	newURLRow := models.URLRow{
@@ -32,6 +35,7 @@ func (r *MemoryURLRepository) Save(url models.URLToSave) (uuid.UUID, error) {
 	return UUID, nil
 }
 
+// BatchSave сохраняет несколько URL в памяти.
 func (r *MemoryURLRepository) BatchSave(urls []models.URLToSave) ([]uuid.UUID, error) {
 	var UUIDs []uuid.UUID
 
@@ -51,6 +55,7 @@ func (r *MemoryURLRepository) BatchSave(urls []models.URLToSave) ([]uuid.UUID, e
 	return UUIDs, nil
 }
 
+// Find ищет URL по сокращенному адресу в памяти.
 func (r *MemoryURLRepository) Find(shortURL string) (models.URLRow, bool) {
 	r.SharedURLRows.Mu.Lock()
 	defer r.SharedURLRows.Mu.Unlock()
@@ -63,6 +68,7 @@ func (r *MemoryURLRepository) Find(shortURL string) (models.URLRow, bool) {
 	return models.URLRow{}, false
 }
 
+// FindByOriginalURL ищет сокращенный URL по оригинальному адресу в памяти.
 func (r *MemoryURLRepository) FindByOriginalURL(originalURL string) (string, bool) {
 	r.SharedURLRows.Mu.Lock()
 	defer r.SharedURLRows.Mu.Unlock()
@@ -75,6 +81,7 @@ func (r *MemoryURLRepository) FindByOriginalURL(originalURL string) (string, boo
 	return "", false
 }
 
+// FindByUserID ищет все URL, принадлежащие пользователю, в памяти.
 func (r *MemoryURLRepository) FindByUserID(userID uuid.UUID) ([]models.URLRow, bool) {
 	r.SharedURLRows.Mu.Lock()
 	defer r.SharedURLRows.Mu.Unlock()
@@ -88,6 +95,7 @@ func (r *MemoryURLRepository) FindByUserID(userID uuid.UUID) ([]models.URLRow, b
 	return matchedURLs, len(matchedURLs) > 0
 }
 
+// BatchDelete помечает URL как удаленные для указанного пользователя в памяти.
 func (r *MemoryURLRepository) BatchDelete(urls []string, userID uuid.UUID) error {
 	r.SharedURLRows.Mu.Lock()
 	defer r.SharedURLRows.Mu.Unlock()
@@ -106,6 +114,7 @@ func (r *MemoryURLRepository) BatchDelete(urls []string, userID uuid.UUID) error
 	return nil
 }
 
+// UpdateUser обновляет пользователя для указанного URL в памяти.
 func (r *MemoryUserRepository) UpdateUser(SavedURLUUID uuid.UUID, userID uuid.UUID) error {
 	r.SharedURLRows.Mu.Lock()
 	defer r.SharedURLRows.Mu.Unlock()
@@ -116,9 +125,10 @@ func (r *MemoryUserRepository) UpdateUser(SavedURLUUID uuid.UUID, userID uuid.UU
 			return nil
 		}
 	}
-	return errors.New("URL not found")
+	return errors.New("URL не найден")
 }
 
+// UpdateBatchUser обновляет пользователя для нескольких URL в памяти.
 func (r *MemoryUserRepository) UpdateBatchUser(SavedURLUUIDs []uuid.UUID, userID uuid.UUID) error {
 	r.SharedURLRows.Mu.Lock()
 	defer r.SharedURLRows.Mu.Unlock()
@@ -137,15 +147,17 @@ func (r *MemoryUserRepository) UpdateBatchUser(SavedURLUUIDs []uuid.UUID, userID
 	}
 
 	if !updated {
-		return errors.New("no URLs updated")
+		return errors.New("URL для обновления не найдены")
 	}
 	return nil
 }
 
+// NewMemoryURLRepository создает новый экземпляр репозитория URL, хранящегося в памяти.
 func NewMemoryURLRepository(sharedURLRows *models.SharedURLRows) (*MemoryURLRepository, error) {
 	return &MemoryURLRepository{SharedURLRows: sharedURLRows}, nil
 }
 
+// NewMemoryUserRepository создает новый экземпляр репозитория пользователей, хранящегося в памяти.
 func NewMemoryUserRepository(sharedURLRows *models.SharedURLRows) (*MemoryUserRepository, error) {
 	return &MemoryUserRepository{SharedURLRows: sharedURLRows}, nil
 }

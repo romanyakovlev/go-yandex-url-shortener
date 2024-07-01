@@ -69,6 +69,7 @@ func parseFlags() argConfig {
 	return cfg
 }
 
+// GetConfig возвращает готовый конфиг
 func GetConfig(s *logger.Logger) Config {
 	argCfg := parseFlags()
 	envCfg := parseEnvs(s)

@@ -1,4 +1,4 @@
-// Package jwt выполняет работу с JWT-токенами для авторизации/аутентификации
+// Package jwt выполняет работу с JWT-токенами для авторизации/аутентификации.
 package jwt
 
 import (
@@ -10,29 +10,35 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	TokenExp  = time.Hour * 24 * 7
-	SecretKey = "supersecretkey"
-)
+// TokenExp Время жизни токена
+const TokenExp = time.Hour * 24 * 7
 
-var (
-	BytesSecretKey = []byte(SecretKey)
-	cachedMap      = NewCache()
-)
+// SecretKey Секретный ключ для подписи токена
+const SecretKey = "supersecretkey"
 
+// BytesSecretKey Байтовое представление секретного ключа
+var BytesSecretKey = []byte(SecretKey)
+
+// Кэш для хранения данных о токенах
+var cachedMap = NewCache()
+
+// Claims представляет собой структуру с данными, закодированными в JWT-токене.
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID uuid.UUID
+	UserID uuid.UUID // Уникальный идентификатор пользователя
 }
 
+// Cache предоставляет механизм кэширования данных о токенах.
 type Cache struct {
-	sync.Map
+	sync.Map // Использование встроенной карты с синхронизацией для безопасного доступа из разных горутин
 }
 
+// NewCache создает новый экземпляр кэша.
 func NewCache() *Cache {
 	return &Cache{}
 }
 
+// Get извлекает данные из кэша по строке токена.
 func (c *Cache) Get(tokenString string) (*cachedData, bool) {
 	data, found := c.Load(tokenString)
 	if !found {
@@ -41,19 +47,22 @@ func (c *Cache) Get(tokenString string) (*cachedData, bool) {
 	return data.(*cachedData), true
 }
 
+// Set сохраняет данные в кэш по строке токена.
 func (c *Cache) Set(tokenString string, data *cachedData) {
 	c.Store(tokenString, data)
 }
 
+// cachedData содержит закэшированные данные о токене.
 type cachedData struct {
-	claims *Claims
-	token  *jwt.Token
+	claims *Claims    // Данные, закодированные в токене
+	token  *jwt.Token // Сам JWT-токен
 }
 
+// BuildJWTString создает строку JWT-токена для указанного идентификатора пользователя.
 func BuildJWTString(UserID uuid.UUID) (string, error) {
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TokenExp)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TokenExp)), // Установка времени истечения токена
 		},
 		UserID: UserID,
 	}
@@ -68,6 +77,7 @@ func BuildJWTString(UserID uuid.UUID) (string, error) {
 	return tokenString, nil
 }
 
+// getClaimsWithToken извлекает данные из токена.
 func getClaimsWithToken(tokenString string) (*Claims, *jwt.Token, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims,
@@ -80,6 +90,7 @@ func getClaimsWithToken(tokenString string) (*Claims, *jwt.Token, error) {
 	return claims, token, err
 }
 
+// getCachedData извлекает закэшированные данные о токене.
 func getCachedData(tokenString string) (*cachedData, error) {
 	cacheData, found := cachedMap.Get(tokenString)
 	if found {
@@ -91,6 +102,7 @@ func getCachedData(tokenString string) (*cachedData, error) {
 	return &cachedData{}, nil
 }
 
+// GetExpiresAt возвращает срок истечения токена, если он валиден.
 func GetExpiresAt(tokenString string) *jwt.NumericDate {
 	data, err := getCachedData(tokenString)
 	if err == nil {
@@ -106,6 +118,7 @@ func GetExpiresAt(tokenString string) *jwt.NumericDate {
 	return claims.ExpiresAt
 }
 
+// GetUserID возвращает uuid пользователя из токена, если он валиден.
 func GetUserID(tokenString string) uuid.UUID {
 	data, err := getCachedData(tokenString)
 	if err == nil {

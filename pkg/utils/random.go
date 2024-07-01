@@ -7,6 +7,7 @@ import (
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+// RandStringBytes генерирует рандомную строку
 func RandStringBytes(n int) string {
 	b := make([]byte, n)
 	for i := range b {

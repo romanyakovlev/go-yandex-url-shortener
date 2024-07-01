@@ -225,6 +225,7 @@ func (c URLShortenerController) ShortenBatchURL(w http.ResponseWriter, r *http.R
 	}
 }
 
+// NewURLShortenerController создает URLShortenerController
 func NewURLShortenerController(shortener URLShortener, logger *logger.Logger, worker *workers.URLDeletionWorker) *URLShortenerController {
 	return &URLShortenerController{shortener: shortener, logger: logger, worker: worker}
 }

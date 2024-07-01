@@ -26,6 +26,7 @@ func (hc HealthCheckController) Ping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// NewHealthCheckController создает HealthCheckController
 func NewHealthCheckController(db *sql.DB) *HealthCheckController {
 	return &HealthCheckController{db: db}
 }
