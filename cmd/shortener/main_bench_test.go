@@ -6,15 +6,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"github.com/google/uuid"
+	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/require"
 
@@ -57,7 +55,7 @@ func Benchmark_saveURL(b *testing.B) {
 		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/", bytes.NewBufferString(body))
 		resp, _ := http.DefaultClient.Do(req)
 		if resp != nil {
-			_, _ = ioutil.ReadAll(resp.Body)
+			_, _ = io.ReadAll(resp.Body)
 			resp.Body.Close()
 		}
 	}
@@ -71,7 +69,7 @@ func Benchmark_getURLByID(b *testing.B) {
 	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/", bytes.NewBufferString(body))
 	resp, _ := http.DefaultClient.Do(req)
 	require.NotNil(b, resp)
-	respBody, _ := ioutil.ReadAll(resp.Body)
+	respBody, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 
 	shortLinkID := strings.Split(string(respBody), "/")[len(strings.Split(string(respBody), "/"))-1]
@@ -95,14 +93,14 @@ func Benchmark_shortenURL(b *testing.B) {
 		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/shorten", bytes.NewBufferString(body))
 		resp, _ := http.DefaultClient.Do(req)
 		if resp != nil {
-			_, _ = ioutil.ReadAll(resp.Body)
+			_, _ = io.ReadAll(resp.Body)
 			resp.Body.Close()
 		}
 	}
 }
 
 func randomString(n int, charset string) string {
-	var seededRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
+	var seededRand = rand.New(rand.NewSource(99))
 	b := make([]byte, n)
 	for i := range b {
 		b[i] = charset[seededRand.Intn(len(charset))]
@@ -129,7 +127,7 @@ func Benchmark_shortenBatchURL(b *testing.B) {
 	ts := setupServer()
 	defer ts.Close()
 
-	rand.Seed(time.Now().UnixNano())
+	rand.New(rand.NewSource(99))
 
 	for i := 0; i < b.N; i++ {
 		batchLen := 10
@@ -157,7 +155,7 @@ func Benchmark_shortenBatchURL(b *testing.B) {
 		}
 
 		if resp != nil {
-			_, _ = ioutil.ReadAll(resp.Body)
+			_, _ = io.ReadAll(resp.Body)
 			resp.Body.Close()
 		}
 	}

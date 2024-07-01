@@ -1,6 +1,9 @@
 package models
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+	"sync"
+)
 
 type ShortenURLRequest struct {
 	URL string `json:"url"`
@@ -54,6 +57,7 @@ type URLRow struct {
 }
 
 type SharedURLRows struct {
+	Mu      sync.Mutex // Embed a mutex directly into the struct
 	URLRows []URLRow
 }
 

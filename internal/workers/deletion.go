@@ -15,17 +15,16 @@ type DeletionRequest struct {
 	URLs []string
 }
 
-var deletionRequestsChan = make(chan DeletionRequest, 100)
-
 type URLDeletionWorker struct {
-	shortener    *shortener.URLShortenerService
-	errorChannel chan error
+	shortener            *shortener.URLShortenerService
+	errorChannel         chan error
+	deletionRequestsChan chan DeletionRequest
 }
 
 func (w *URLDeletionWorker) StartDeletionWorker(ctx context.Context) {
 	for {
 		select {
-		case req := <-deletionRequestsChan:
+		case req := <-w.deletionRequestsChan:
 			go w.processDeletionRequest(ctx, req)
 		case <-ctx.Done():
 			return
@@ -35,7 +34,7 @@ func (w *URLDeletionWorker) StartDeletionWorker(ctx context.Context) {
 
 func (w *URLDeletionWorker) SendDeletionRequestToWorker(req DeletionRequest) error {
 	select {
-	case deletionRequestsChan <- req:
+	case w.deletionRequestsChan <- req:
 		return nil
 	default:
 		return fmt.Errorf("the deletion request queue is currently full, please try again later")
@@ -66,7 +65,8 @@ func (w *URLDeletionWorker) StartErrorListener(ctx context.Context) {
 
 func InitURLDeletionWorker(s *shortener.URLShortenerService) *URLDeletionWorker {
 	return &URLDeletionWorker{
-		shortener:    s,
-		errorChannel: make(chan error, 100),
+		shortener:            s,
+		errorChannel:         make(chan error, 100),
+		deletionRequestsChan: make(chan DeletionRequest, 100),
 	}
 }
