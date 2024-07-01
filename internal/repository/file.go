@@ -12,16 +12,19 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 )
 
+// FileURLRepository представляет репозиторий URL, хранящийся в файле.
 type FileURLRepository struct {
-	filePath string
-	Logger   *logger.Logger
+	filePath string         // Путь к файлу для хранения данных.
+	Logger   *logger.Logger // Логгер для регистрации событий.
 }
 
+// FileUserRepository представляет репозиторий пользователей, хранящийся в файле.
 type FileUserRepository struct {
-	filePath string
-	Logger   *logger.Logger
+	filePath string         // Путь к файлу для хранения данных.
+	Logger   *logger.Logger // Логгер для регистрации событий.
 }
 
+// newScanner создает новый сканер для чтения данных из файла.
 func (r *FileURLRepository) newScanner() (*bufio.Scanner, *os.File, error) {
 	file, err := os.Open(r.filePath)
 	if err != nil {
@@ -30,6 +33,7 @@ func (r *FileURLRepository) newScanner() (*bufio.Scanner, *os.File, error) {
 	return bufio.NewScanner(file), file, nil
 }
 
+// newWriter создает новый writer для записи данных в файл.
 func (r *FileURLRepository) newWriter(truncateModes ...bool) (*bufio.Writer, *os.File, error) {
 	truncateMode := false
 	if len(truncateModes) > 0 {
@@ -50,6 +54,7 @@ func (r *FileURLRepository) newWriter(truncateModes ...bool) (*bufio.Writer, *os
 	return bufio.NewWriter(file), file, nil
 }
 
+// Find ищет URL по сокращенному адресу в файле.
 func (r FileURLRepository) Find(shortURL string) (models.URLRow, bool) {
 	scanner, file, err := r.newScanner()
 	if err != nil {
@@ -72,6 +77,7 @@ func (r FileURLRepository) Find(shortURL string) (models.URLRow, bool) {
 	return models.URLRow{}, false
 }
 
+// FindByOriginalURL ищет сокращенный URL по оригинальному адресу в файле.
 func (r FileURLRepository) FindByOriginalURL(originalURL string) (string, bool) {
 	scanner, file, err := r.newScanner()
 	if err != nil {
@@ -94,6 +100,7 @@ func (r FileURLRepository) FindByOriginalURL(originalURL string) (string, bool) 
 	return "", false
 }
 
+// FindByUserID ищет все URL, принадлежащие пользователю, в файле.
 func (r *FileURLRepository) FindByUserID(userID uuid.UUID) ([]models.URLRow, bool) {
 	var urlRows []models.URLRow
 	scanner, file, err := r.newScanner()
@@ -119,6 +126,7 @@ func (r *FileURLRepository) FindByUserID(userID uuid.UUID) ([]models.URLRow, boo
 	return urlRows, true
 }
 
+// Save сохраняет новый URL в файл.
 func (r FileURLRepository) Save(url models.URLToSave) (uuid.UUID, error) {
 	writer, file, err := r.newWriter()
 	if err != nil {
@@ -145,6 +153,7 @@ func (r FileURLRepository) Save(url models.URLToSave) (uuid.UUID, error) {
 	return UUID, nil
 }
 
+// BatchSave сохраняет несколько URL в файл одной транзакцией.
 func (r FileURLRepository) BatchSave(urls []models.URLToSave) ([]uuid.UUID, error) {
 	writer, file, err := r.newWriter()
 	if err != nil {
@@ -175,6 +184,7 @@ func (r FileURLRepository) BatchSave(urls []models.URLToSave) ([]uuid.UUID, erro
 	return UUIDs, nil
 }
 
+// BatchDelete помечает URL как удаленные для указанного пользователя в файле.
 func (r *FileURLRepository) BatchDelete(urls []string, userID uuid.UUID) error {
 	uuidMap := make(map[string]bool)
 	for _, shortURL := range urls {
@@ -259,6 +269,7 @@ func (r *FileUserRepository) newWriter(truncateModes ...bool) (*bufio.Writer, *o
 	return bufio.NewWriter(file), file, nil
 }
 
+// UpdateUser обновляет пользователя для указанного URL.
 func (r *FileUserRepository) UpdateUser(savedURLUUID uuid.UUID, userID uuid.UUID) error {
 	var urlRows []models.URLRow
 	scanner, file, err := r.newScanner()
@@ -310,6 +321,7 @@ func (r *FileUserRepository) UpdateUser(savedURLUUID uuid.UUID, userID uuid.UUID
 	return nil
 }
 
+// UpdateBatchUser обновляет пользователя для нескольких URL.
 func (r *FileUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID uuid.UUID) error {
 	uuidMap := make(map[uuid.UUID]bool)
 	for _, id := range savedURLUUIDs {
@@ -366,10 +378,12 @@ func (r *FileUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID u
 	return nil
 }
 
+// NewFileURLRepository создает новый экземпляр репозитория URL, хранящегося в файле.
 func NewFileURLRepository(serverConfig config.Config, sugar *logger.Logger) (*FileURLRepository, error) {
 	return &FileURLRepository{filePath: serverConfig.FileStoragePath, Logger: sugar}, nil
 }
 
+// NewFileUserRepository создает новый экземпляр репозитория пользователей, хранящегося в файле.
 func NewFileUserRepository(serverConfig config.Config, sugar *logger.Logger) (*FileUserRepository, error) {
 	return &FileUserRepository{filePath: serverConfig.FileStoragePath, Logger: sugar}, nil
 }

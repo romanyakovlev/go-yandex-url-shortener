@@ -1,3 +1,4 @@
+// Package server выполняет инициализацию web-приложения
 package server
 
 import (
@@ -19,6 +20,7 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/workers"
 )
 
+// Router настраивает и возвращает маршрутизатор для web-приложения.
 func Router(
 	URLShortenerController *controller.URLShortenerController,
 	HealthCheckController *controller.HealthCheckController,
@@ -38,7 +40,8 @@ func Router(
 	return r
 }
 
-func initURLRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *models.SharedURLRows, sugar *logger.Logger) (service.URLRepository, error) {
+// InitURLRepository инициализирует репозиторий URL в зависимости от конфигурации.
+func InitURLRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *models.SharedURLRows, sugar *logger.Logger) (service.URLRepository, error) {
 	if serverConfig.DatabaseDSN != "" {
 		return repository.NewDBURLRepository(db)
 	} else if serverConfig.FileStoragePath != "" {
@@ -49,6 +52,7 @@ func initURLRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *mo
 
 }
 
+// InitURLRepository инициализирует репозиторий пользователя в зависимости от конфигурации.
 func initUserRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *models.SharedURLRows, sugar *logger.Logger) (service.UserRepository, error) {
 	if serverConfig.DatabaseDSN != "" {
 		return repository.NewDBUserRepository(db)
@@ -60,6 +64,7 @@ func initUserRepository(serverConfig config.Config, db *sql.DB, sharedURLRows *m
 
 }
 
+// Run запускает web-приложение.
 func Run() error {
 	sugar := logger.GetLogger()
 	serverConfig := config.GetConfig(sugar)
@@ -72,7 +77,7 @@ func Run() error {
 	defer DB.Close()
 	sharedURLRows := models.NewSharedURLRows()
 
-	shortenerrepo, err := initURLRepository(serverConfig, DB, sharedURLRows, sugar)
+	shortenerrepo, err := InitURLRepository(serverConfig, DB, sharedURLRows, sugar)
 	if err != nil {
 		sugar.Errorf("Server error: %v", err)
 		return err

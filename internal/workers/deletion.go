@@ -1,3 +1,5 @@
+// Package workers выполняет роль фонового процесса, который
+// выполняет отложенное удаление URL отдельно от хендлера.
 package workers
 
 import (
@@ -8,38 +10,42 @@ import (
 	shortener "github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
 )
 
+// DeletionRequest структура запроса на удаление URL.
 type DeletionRequest struct {
-	User models.User
-	URLs []string
+	User models.User // Пользователь, от имени которого производится удаление.
+	URLs []string    // Список URL для удаления.
 }
 
-var deletionRequestsChan = make(chan DeletionRequest, 100)
-
+// URLDeletionWorker структура фонового процесса для удаления URL.
 type URLDeletionWorker struct {
-	shortener    *shortener.URLShortenerService
-	errorChannel chan error
+	shortener            *shortener.URLShortenerService // Сервис сокращения URL.
+	errorChannel         chan error                     // Канал для передачи ошибок.
+	deletionRequestsChan chan DeletionRequest           // Канал для запросов на удаление.
 }
 
+// StartDeletionWorker запускает фоновый процесс для обработки запросов на удаление.
 func (w *URLDeletionWorker) StartDeletionWorker(ctx context.Context) {
 	for {
 		select {
-		case req := <-deletionRequestsChan:
-			go w.processDeletionRequest(ctx, req)
-		case <-ctx.Done():
+		case req := <-w.deletionRequestsChan: // Чтение запроса на удаление из канала.
+			go w.processDeletionRequest(ctx, req) // Асинхронная обработка запроса.
+		case <-ctx.Done(): // Завершение работы при отмене контекста.
 			return
 		}
 	}
 }
 
+// SendDeletionRequestToWorker отправляет запрос на удаление в фоновый процесс.
 func (w *URLDeletionWorker) SendDeletionRequestToWorker(req DeletionRequest) error {
 	select {
-	case deletionRequestsChan <- req:
+	case w.deletionRequestsChan <- req: // Попытка отправить запрос в канал.
 		return nil
 	default:
 		return fmt.Errorf("the deletion request queue is currently full, please try again later")
 	}
 }
 
+// processDeletionRequest обрабатывает запрос на удаление.
 func (w *URLDeletionWorker) processDeletionRequest(ctx context.Context, req DeletionRequest) {
 	if err := w.shortener.DeleteBatchURL(req.URLs, req.User); err != nil {
 		select {
@@ -50,6 +56,7 @@ func (w *URLDeletionWorker) processDeletionRequest(ctx context.Context, req Dele
 	}
 }
 
+// StartErrorListener запускает прослушивание канала ошибок.
 func (w *URLDeletionWorker) StartErrorListener(ctx context.Context) {
 	for {
 		select {
@@ -62,9 +69,11 @@ func (w *URLDeletionWorker) StartErrorListener(ctx context.Context) {
 	}
 }
 
+// InitURLDeletionWorker инициализирует и возвращает новый экземпляр фонового процесса для удаления URL.
 func InitURLDeletionWorker(s *shortener.URLShortenerService) *URLDeletionWorker {
 	return &URLDeletionWorker{
-		shortener:    s,
-		errorChannel: make(chan error, 100),
+		shortener:            s,
+		errorChannel:         make(chan error, 100),
+		deletionRequestsChan: make(chan DeletionRequest, 100),
 	}
 }

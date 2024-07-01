@@ -7,6 +7,8 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/gzip"
 )
 
+// GzipMiddleware является промежуточным обработчиком (middleware), который добавляет поддержку gzip-сжатия.
+// Он проверяет заголовки запроса на наличие поддержки gzip и, если поддерживается, сжимает ответ.
 func GzipMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ow := w
