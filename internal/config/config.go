@@ -1,7 +1,14 @@
+// Модуль config создает конфиг приложения
+// Доступные пути конфигурации (указаны в порядке приоритета):
+// 1. Поиск Переменной окружения
+// 2. поиск аргумента командой строки
+// 3. значение по-умолчанию
+
 package config
 
 import (
 	"flag"
+	"sync"
 
 	"github.com/caarlos0/env/v6"
 
@@ -22,34 +29,47 @@ type envConfig struct {
 	DatabaseDSN     string `env:"DATABASE_DSN"`
 }
 
+// Config Доступные агрументы для конфигурации
 type Config struct {
-	ServerAddress   string
-	BaseURL         string
+	// ServerAddress - Адрес запуска HTTP-сервера
+	ServerAddress string
+	// BaseURL - Базовый адрес результирующего сокращённого URL
+	BaseURL string
+	// FileStoragePath - Путь для сохраниния данных в файле
 	FileStoragePath string
-	DatabaseDSN     string
+	// DatabaseDSN - Строка с адресом подключения к БД
+	DatabaseDSN string
 }
+
+var onceParseEnvs sync.Once
+var onceParseFlags sync.Once
 
 func parseEnvs(s *logger.Logger) envConfig {
 	var cfg envConfig
-	err := env.Parse(&cfg)
-	if err != nil {
-		s.Fatal(err)
-	}
+	onceParseEnvs.Do(func() {
+		err := env.Parse(&cfg)
+		if err != nil {
+			s.Fatal(err)
+		}
+	})
 	return cfg
 }
 
 func parseFlags() argConfig {
 	var cfg argConfig
-	// указываем имя флага, значение по умолчанию и описание
-	flag.StringVar(&cfg.flagAAddr, "a", "localhost:8080", "Адрес запуска HTTP-сервера")
-	flag.StringVar(&cfg.flagBAddr, "b", "http://localhost:8080", "Базовый адрес результирующего сокращённого URL")
-	flag.StringVar(&cfg.flagFAddr, "f", "", "Путь для сохраниния данных в файле")
-	flag.StringVar(&cfg.flagDAddr, "d", "", "Строка с адресом подключения к БД")
-	// делаем разбор командной строки
-	flag.Parse()
+	onceParseFlags.Do(func() {
+		// указываем имя флага, значение по умолчанию и описание
+		flag.StringVar(&cfg.flagAAddr, "a", "localhost:8080", "Адрес запуска HTTP-сервера")
+		flag.StringVar(&cfg.flagBAddr, "b", "http://localhost:8080", "Базовый адрес результирующего сокращённого URL")
+		flag.StringVar(&cfg.flagFAddr, "f", "", "Путь для сохраниния данных в файле")
+		flag.StringVar(&cfg.flagDAddr, "d", "", "Строка с адресом подключения к БД")
+		// делаем разбор командной строки
+		flag.Parse()
+	})
 	return cfg
 }
 
+// GetConfig возвращает готовый конфиг
 func GetConfig(s *logger.Logger) Config {
 	argCfg := parseFlags()
 	envCfg := parseEnvs(s)

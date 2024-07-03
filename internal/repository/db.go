@@ -13,17 +13,20 @@ import (
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
 )
 
+// DBURLRepository представляет репозиторий для работы с URL в базе данных.
 type DBURLRepository struct {
-	db *sql.DB
+	db *sql.DB // db представляет подключение к базе данных.
 }
 
+// DBUserRepository представляет репозиторий для работы с пользователями в базе данных.
 type DBUserRepository struct {
-	db *sql.DB
+	db *sql.DB // db представляет подключение к базе данных.
 }
 
+// Find ищет URL по сокращенному адресу.
 func (r DBURLRepository) Find(shortURL string) (models.URLRow, bool) {
 	var urlRow models.URLRow
-	row := r.db.QueryRow("SELECT uuid, short_url, original_url, is_deleted FROM url_rows where short_url = $1", shortURL)
+	row := r.db.QueryRow("SELECT uuid, short_url, original_url, is_deleted FROM url_rows WHERE short_url = $1", shortURL)
 	err := row.Scan(&urlRow.UUID, &urlRow.ShortURL, &urlRow.OriginalURL, &urlRow.DeletedFlag)
 	if err != nil {
 		return models.URLRow{}, false
@@ -31,9 +34,10 @@ func (r DBURLRepository) Find(shortURL string) (models.URLRow, bool) {
 	return urlRow, true
 }
 
+// FindByOriginalURL ищет сокращенный URL по оригинальному адресу.
 func (r DBURLRepository) FindByOriginalURL(originalURL string) (string, bool) {
 	var urlRow models.URLRow
-	row := r.db.QueryRow("SELECT uuid, short_url, original_url FROM url_rows where original_url = $1", originalURL)
+	row := r.db.QueryRow("SELECT uuid, short_url, original_url FROM url_rows WHERE original_url = $1", originalURL)
 	err := row.Scan(&urlRow.UUID, &urlRow.ShortURL, &urlRow.OriginalURL)
 	if err != nil {
 		return "", false
@@ -41,6 +45,7 @@ func (r DBURLRepository) FindByOriginalURL(originalURL string) (string, bool) {
 	return urlRow.ShortURL, true
 }
 
+// FindByUserID ищет все URL, принадлежащие пользователю.
 func (r *DBURLRepository) FindByUserID(userID uuid.UUID) ([]models.URLRow, bool) {
 	var urlRows []models.URLRow
 
@@ -65,6 +70,7 @@ func (r *DBURLRepository) FindByUserID(userID uuid.UUID) ([]models.URLRow, bool)
 	return urlRows, true
 }
 
+// Save сохраняет новый URL в базу данных.
 func (r DBURLRepository) Save(url models.URLToSave) (uuid.UUID, error) {
 	query := "INSERT INTO url_rows (uuid, short_url, original_url) VALUES ($1, $2, $3)"
 	UUID := uuid.New()
@@ -84,6 +90,7 @@ func (r DBURLRepository) Save(url models.URLToSave) (uuid.UUID, error) {
 	return UUID, nil
 }
 
+// BatchSave сохраняет несколько URL в базу данных одной транзакцией.
 func (r DBURLRepository) BatchSave(urls []models.URLToSave) ([]uuid.UUID, error) {
 	query := "INSERT INTO url_rows (uuid, short_url, original_url) VALUES ($1, $2, $3)"
 	var UUIDs []uuid.UUID
@@ -106,6 +113,7 @@ func (r DBURLRepository) BatchSave(urls []models.URLToSave) ([]uuid.UUID, error)
 	return UUIDs, tx.Commit()
 }
 
+// BatchDelete помечает URL как удаленные для указанного пользователя.
 func (r *DBURLRepository) BatchDelete(urls []string, userID uuid.UUID) error {
 	query := `UPDATE url_rows SET is_deleted = true WHERE user_id = $1 AND short_url = ANY($2)`
 
@@ -122,6 +130,7 @@ func (r *DBURLRepository) BatchDelete(urls []string, userID uuid.UUID) error {
 	return nil
 }
 
+// UpdateUser обновляет пользователя для указанного URL.
 func (r DBUserRepository) UpdateUser(savedURLUUID uuid.UUID, userID uuid.UUID) error {
 	query := "UPDATE url_rows SET user_id = $1 WHERE uuid = $2"
 	result, err := r.db.Exec(query, userID, savedURLUUID)
@@ -138,6 +147,7 @@ func (r DBUserRepository) UpdateUser(savedURLUUID uuid.UUID, userID uuid.UUID) e
 	return nil
 }
 
+// UpdateBatchUser обновляет пользователя для нескольких URL.
 func (r *DBUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID uuid.UUID) error {
 	query := `UPDATE url_rows SET user_id = $1 WHERE uuid = ANY($2)`
 
@@ -158,10 +168,12 @@ func (r *DBUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID uui
 	return nil
 }
 
+// NewDBURLRepository создает новый экземпляр репозитория URL.
 func NewDBURLRepository(db *sql.DB) (*DBURLRepository, error) {
 	return &DBURLRepository{db: db}, nil
 }
 
+// NewDBUserRepository создает новый экземпляр репозитория пользователей.
 func NewDBUserRepository(db *sql.DB) (*DBUserRepository, error) {
 	return &DBUserRepository{db: db}, nil
 }

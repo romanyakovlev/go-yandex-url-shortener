@@ -8,32 +8,33 @@ import (
 )
 
 type (
-	// берём структуру для хранения сведений об ответе
 	responseData struct {
 		status int
 		size   int
 	}
 
-	// добавляем реализацию http.ResponseWriter
 	loggingResponseWriter struct {
-		http.ResponseWriter // встраиваем оригинальный http.ResponseWriter
+		http.ResponseWriter // Встраивание оригинального http.ResponseWriter для расширения его функционала.
 		responseData        *responseData
 	}
 )
 
+// Write переопределяет метод Write оригинального http.ResponseWriter,
+// позволяя захватить размер отправленных данных.
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {
-	// записываем ответ, используя оригинальный http.ResponseWriter
 	size, err := r.ResponseWriter.Write(b)
-	r.responseData.size += size // захватываем размер
+	r.responseData.size += size // Захватываем размер отправленных данных.
 	return size, err
 }
 
+// WriteHeader переопределяет метод WriteHeader оригинального http.ResponseWriter,
+// позволяя захватить статус ответа.
 func (r *loggingResponseWriter) WriteHeader(statusCode int) {
-	// записываем код статуса, используя оригинальный http.ResponseWriter
 	r.ResponseWriter.WriteHeader(statusCode)
-	r.responseData.status = statusCode // захватываем код статуса
+	r.responseData.status = statusCode // Захватываем статус ответа.
 }
 
+// RequestLoggerMiddleware логирует информацию о каждом запросе и ответе.
 func RequestLoggerMiddleware(s *logger.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		logFn := func(w http.ResponseWriter, r *http.Request) {
@@ -44,19 +45,20 @@ func RequestLoggerMiddleware(s *logger.Logger) func(next http.Handler) http.Hand
 				size:   0,
 			}
 			lw := loggingResponseWriter{
-				ResponseWriter: w, // встраиваем оригинальный http.ResponseWriter
+				ResponseWriter: w, // Встраиваем оригинальный http.ResponseWriter.
 				responseData:   responseData,
 			}
-			next.ServeHTTP(&lw, r) // внедряем реализацию http.ResponseWriter
+			next.ServeHTTP(&lw, r) // Внедряем нашу реализацию http.ResponseWriter.
 
 			duration := time.Since(start)
 
+			// Логирование информации о запросе и ответе.
 			s.Infoln(
 				"uri", r.RequestURI,
 				"method", r.Method,
-				"status", responseData.status, // получаем перехваченный код статуса ответа
+				"status", responseData.status, // Получаем перехваченный код статуса ответа.
 				"duration", duration,
-				"size", responseData.size, // получаем перехваченный размер ответа
+				"size", responseData.size, // Получаем перехваченный размер ответа.
 			)
 		}
 		return http.HandlerFunc(logFn)

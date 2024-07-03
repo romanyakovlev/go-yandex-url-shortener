@@ -1,3 +1,4 @@
+// Package db Пакет инициализации БД
 package db
 
 import (
@@ -10,6 +11,7 @@ import (
 
 const migrationsDir = "./migrations"
 
+// InitDB инициализирует БД
 func InitDB(DatabaseDSN string, sugar *logger.Logger) (*sql.DB, error) {
 	db, err := sql.Open("pgx", DatabaseDSN)
 	if err != nil {
