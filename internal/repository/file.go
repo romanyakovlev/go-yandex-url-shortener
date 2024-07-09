@@ -146,9 +146,9 @@ func (r FileURLRepository) Save(url models.URLToSave) (uuid.UUID, error) {
 		r.Logger.Debugf("Cannot write data: %s", err)
 		return UUID, err
 	}
-	if err := writer.Flush(); err != nil {
-		r.Logger.Errorf("Error flushing writer: %v", err)
-		return uuid.UUID{}, err
+	if flushErr := writer.Flush(); flushErr != nil {
+		r.Logger.Errorf("Error flushing writer: %v", flushErr)
+		return uuid.UUID{}, flushErr
 	}
 	return UUID, nil
 }
@@ -176,9 +176,9 @@ func (r FileURLRepository) BatchSave(urls []models.URLToSave) ([]uuid.UUID, erro
 			r.Logger.Debugf("Cannot write data: %s", err)
 			return UUIDs, err
 		}
-		if err := writer.Flush(); err != nil {
-			r.Logger.Errorf("Error flushing writer: %v", err)
-			return []uuid.UUID{}, err
+		if flushErr := writer.Flush(); flushErr != nil {
+			r.Logger.Errorf("Error flushing writer: %v", flushErr)
+			return []uuid.UUID{}, flushErr
 		}
 	}
 	return UUIDs, nil
@@ -201,8 +201,8 @@ func (r *FileURLRepository) BatchDelete(urls []string, userID uuid.UUID) error {
 	for scanner.Scan() {
 		var urlRow models.URLRow
 		line := scanner.Text()
-		if err := json.Unmarshal([]byte(line), &urlRow); err != nil {
-			r.Logger.Debugf("Cannot decode line JSON: %s", err)
+		if decodeErr := json.Unmarshal([]byte(line), &urlRow); decodeErr != nil {
+			r.Logger.Debugf("Cannot decode line JSON: %s", decodeErr)
 			continue
 		}
 
@@ -213,8 +213,8 @@ func (r *FileURLRepository) BatchDelete(urls []string, userID uuid.UUID) error {
 		urlRows = append(urlRows, urlRow)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return err
+	if scannerErr := scanner.Err(); scannerErr != nil {
+		return scannerErr
 	}
 	writer, file, err := r.newWriter(true)
 	if err != nil {
@@ -233,9 +233,9 @@ func (r *FileURLRepository) BatchDelete(urls []string, userID uuid.UUID) error {
 			return err
 		}
 	}
-	if err := writer.Flush(); err != nil {
-		r.Logger.Debugf("Error flushing writer: %s", err)
-		return err
+	if flushErr := writer.Flush(); flushErr != nil {
+		r.Logger.Debugf("Error flushing writer: %s", flushErr)
+		return flushErr
 	}
 
 	return nil
@@ -281,8 +281,8 @@ func (r *FileUserRepository) UpdateUser(savedURLUUID uuid.UUID, userID uuid.UUID
 	for scanner.Scan() {
 		var urlRow models.URLRow
 		line := scanner.Text()
-		if err := json.Unmarshal([]byte(line), &urlRow); err != nil {
-			r.Logger.Debugf("Cannot decode line JSON: %s", err)
+		if decodeErr := json.Unmarshal([]byte(line), &urlRow); decodeErr != nil {
+			r.Logger.Debugf("Cannot decode line JSON: %s", decodeErr)
 			continue
 		}
 
@@ -293,8 +293,8 @@ func (r *FileUserRepository) UpdateUser(savedURLUUID uuid.UUID, userID uuid.UUID
 		urlRows = append(urlRows, urlRow)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return err
+	if scannerErr := scanner.Err(); scannerErr != nil {
+		return scannerErr
 	}
 	writer, file, err := r.newWriter(true)
 	if err != nil {
@@ -313,9 +313,9 @@ func (r *FileUserRepository) UpdateUser(savedURLUUID uuid.UUID, userID uuid.UUID
 			return err
 		}
 	}
-	if err := writer.Flush(); err != nil {
-		r.Logger.Debugf("Error flushing writer: %s", err)
-		return err
+	if flushErr := writer.Flush(); flushErr != nil {
+		r.Logger.Debugf("Error flushing writer: %s", flushErr)
+		return flushErr
 	}
 
 	return nil
@@ -338,8 +338,8 @@ func (r *FileUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID u
 	for scanner.Scan() {
 		var urlRow models.URLRow
 		line := scanner.Text()
-		if err := json.Unmarshal([]byte(line), &urlRow); err != nil {
-			r.Logger.Debugf("Cannot decode line JSON: %s", err)
+		if decodeErr := json.Unmarshal([]byte(line), &urlRow); decodeErr != nil {
+			r.Logger.Debugf("Cannot decode line JSON: %s", decodeErr)
 			continue
 		}
 
@@ -350,8 +350,8 @@ func (r *FileUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID u
 		urlRows = append(urlRows, urlRow)
 	}
 
-	if err := scanner.Err(); err != nil {
-		return err
+	if scannerErr := scanner.Err(); scannerErr != nil {
+		return scannerErr
 	}
 	writer, file, err := r.newWriter(true)
 	if err != nil {
@@ -360,19 +360,19 @@ func (r *FileUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID u
 	}
 	defer file.Close()
 	for _, urlRow := range urlRows {
-		data, err := json.Marshal(urlRow)
-		if err != nil {
-			r.Logger.Debugf("Cannot encode URLRow to JSON: %s", err)
-			return err
+		data, decodeErr := json.Marshal(urlRow)
+		if decodeErr != nil {
+			r.Logger.Debugf("Cannot encode URLRow to JSON: %s", decodeErr)
+			return decodeErr
 		}
-		if _, err := writer.WriteString(string(data) + "\n"); err != nil {
-			r.Logger.Debugf("Cannot write URLRow to file: %s", err)
-			return err
+		if _, writerErr := writer.WriteString(string(data) + "\n"); writerErr != nil {
+			r.Logger.Debugf("Cannot write URLRow to file: %s", writerErr)
+			return writerErr
 		}
 	}
-	if err := writer.Flush(); err != nil {
-		r.Logger.Debugf("Error flushing writer: %s", err)
-		return err
+	if flushErr := writer.Flush(); flushErr != nil {
+		r.Logger.Debugf("Error flushing writer: %s", flushErr)
+		return flushErr
 	}
 
 	return nil

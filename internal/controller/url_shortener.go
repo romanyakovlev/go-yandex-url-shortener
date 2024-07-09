@@ -159,8 +159,8 @@ func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Reques
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusConflict)
 				enc := json.NewEncoder(w)
-				if err := enc.Encode(resp); err != nil {
-					c.logger.Debugf("cannot encode response JSON body: %s", err)
+				if encodeErr := enc.Encode(resp); encodeErr != nil {
+					c.logger.Debugf("cannot encode response JSON body: %s", encodeErr)
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
