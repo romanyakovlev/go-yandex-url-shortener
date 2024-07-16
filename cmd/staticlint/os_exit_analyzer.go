@@ -2,6 +2,7 @@ package main
 
 import (
 	"go/ast"
+
 	"golang.org/x/tools/go/analysis"
 )
 
