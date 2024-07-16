@@ -3,7 +3,6 @@ package main
 import (
 	"go/ast"
 	"golang.org/x/tools/go/analysis"
-	"log"
 )
 
 // osExitAnalyzer checks for calls to os.Exit within the main function.
@@ -42,8 +41,8 @@ func runOsExitInMain(pass *analysis.Pass) (interface{}, error) {
 				inMainFunc = x.Name.Name == "main"
 			case *ast.CallExpr:
 				if inMainFunc && isOsExitCall(x) {
-					log.Println("Found a call to os.Exit within the main function")
-					pass.Reportf(x.Pos(), "call to os.Exit in main function is prohibited")
+					message := "Found a call to os.Exit within the main function. This is prohibited."
+					pass.Reportf(x.Pos(), message)
 				}
 			}
 			return true
