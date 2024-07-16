@@ -20,12 +20,16 @@ func valueOrNA(value string) string {
 	return value
 }
 
-func main() {
+func printBuildInfo() {
 	formattedString := fmt.Sprintf(
 		"Build version: %s\nBuild date: %s\nBuild commit: %s",
 		valueOrNA(buildVersion), valueOrNA(buildDate), valueOrNA(buildCommit),
 	)
 	fmt.Println(formattedString)
+}
+
+func main() {
+	printBuildInfo()
 	if err := server.Run(); err != nil {
 		log.Fatalf("An error occurred: %v", err)
 	}

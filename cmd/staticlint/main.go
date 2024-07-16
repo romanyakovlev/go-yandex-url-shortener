@@ -9,7 +9,7 @@ import (
 	"honnef.co/go/tools/staticcheck"
 )
 
-func main() {
+func initAnalyzers() []*analysis.Analyzer {
 	analyzers := []*analysis.Analyzer{
 		printf.Analyzer,
 		shadow.Analyzer,
@@ -30,6 +30,11 @@ func main() {
 			analyzers = append(analyzers, a.Analyzer)
 		}
 	}
+	return analyzers
+}
+
+func main() {
+	analyzers := initAnalyzers()
 
 	multichecker.Main(
 		analyzers...,
