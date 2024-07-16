@@ -56,51 +56,28 @@ func (c URLShortenerController) SaveURL(w http.ResponseWriter, r *http.Request) 
 	urlStr := string(bytes)
 	savedURL, err := c.shortener.AddURL(urlStr)
 	if err != nil {
-		var appError *apperrors.OriginalURLAlreadyExists
-		if ok := errors.As(err, &appError); ok {
-			c.logger.Debugf("Shortener service error: %s", err)
-			value, ok := c.shortener.GetURLByOriginalURL(urlStr)
-			if ok {
-				w.WriteHeader(http.StatusConflict)
-				fmt.Fprintf(w, "%v", value)
-			} else {
-				w.WriteHeader(http.StatusBadRequest)
-			}
-		} else {
-			c.logger.Debugf("Shortener service error: %s", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		c.handleShortenerServiceError(w, err, urlStr, "text")
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, "%v", savedURL.ShortURL)
 	user, _ := middlewares.GetUserFromContext(r.Context())
-	err = c.shortener.AddUserToURL(savedURL, user)
-	if err != nil {
-		c.logger.Debugf("something went wrong: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	if err := c.shortener.AddUserToURL(savedURL, user); err != nil {
+		c.handleError(w, err, http.StatusInternalServerError, "something went wrong: %s", nil)
 	}
 }
 
 // DeleteBatchURL Удаляет список url
 func (c URLShortenerController) DeleteBatchURL(w http.ResponseWriter, r *http.Request) {
 	var urls []string
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&urls); err != nil {
-		c.logger.Debugf("cannot decode request JSON body: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	if err := json.NewDecoder(r.Body).Decode(&urls); err != nil {
+		c.handleError(w, err, http.StatusInternalServerError, "cannot decode request JSON body: %s", nil)
 		return
 	}
 	user, _ := middlewares.GetUserFromContext(r.Context())
-	req := workers.DeletionRequest{
-		User: user,
-		URLs: urls,
-	}
+	req := workers.DeletionRequest{User: user, URLs: urls}
 	if err := c.worker.SendDeletionRequestToWorker(req); err != nil {
-		c.logger.Debugf("error send to deletion worker request: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		c.handleError(w, err, http.StatusInternalServerError, "error sending to deletion worker request: %s", nil)
 	} else {
 		w.WriteHeader(http.StatusAccepted)
 	}
@@ -127,13 +104,7 @@ func (c URLShortenerController) GetURLByUser(w http.ResponseWriter, r *http.Requ
 	user, _ := middlewares.GetUserFromContext(r.Context())
 	resp, ok := c.shortener.GetURLByUser(user)
 	if ok {
-		w.Header().Set("Content-Type", "application/json")
-		enc := json.NewEncoder(w)
-		if err := enc.Encode(resp); err != nil {
-			c.logger.Debugf("cannot encode response JSON body: %s", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		c.writeJSONResponse(w, http.StatusOK, resp)
 	} else {
 		w.WriteHeader(http.StatusBadRequest)
 	}
@@ -142,86 +113,89 @@ func (c URLShortenerController) GetURLByUser(w http.ResponseWriter, r *http.Requ
 // ShortenURL Принимает url и возвращает короткую ссылку (ожидает url в json body)
 func (c URLShortenerController) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	var req models.ShortenURLRequest
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&req); err != nil {
-		c.logger.Debugf("cannot decode request JSON body: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.handleError(w, err, http.StatusInternalServerError, "cannot decode request JSON body: %s", nil)
 		return
 	}
 	savedURL, err := c.shortener.AddURL(req.URL)
 	if err != nil {
-		var appError *apperrors.OriginalURLAlreadyExists
-		if ok := errors.As(err, &appError); ok {
-			c.logger.Debugf("Shortener service error: %s", err)
-			value, ok := c.shortener.GetURLByOriginalURL(req.URL)
-			if ok {
-				resp := models.ShortenURLResponse{Result: value}
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusConflict)
-				enc := json.NewEncoder(w)
-				if err := enc.Encode(resp); err != nil {
-					c.logger.Debugf("cannot encode response JSON body: %s", err)
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-			} else {
-				w.WriteHeader(http.StatusBadRequest)
-			}
-		} else {
-			c.logger.Debugf("Shortener service error: %s", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		c.handleShortenerServiceError(w, err, req.URL, "json")
 		return
 	}
 	resp := models.ShortenURLResponse{Result: savedURL.ShortURL}
-	w.Header().Set("Content-Type", "application/json")
 	user, _ := middlewares.GetUserFromContext(r.Context())
-	err = c.shortener.AddUserToURL(savedURL, user)
-	if err != nil {
-		c.logger.Debugf("something went wrong: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	if err := c.shortener.AddUserToURL(savedURL, user); err != nil {
+		c.handleError(w, err, http.StatusInternalServerError, "something went wrong: %s", nil)
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	enc := json.NewEncoder(w)
-	if err := enc.Encode(resp); err != nil {
-		c.logger.Debugf("cannot encode response JSON body: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	c.writeJSONResponse(w, http.StatusCreated, resp)
 }
 
 // ShortenBatchURL Принимает список url в формате json и возвращает список коротких ссылок
 func (c URLShortenerController) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
 	var req []models.ShortenBatchURLRequestElement
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&req); err != nil {
-		c.logger.Debugf("cannot decode request JSON body: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		c.handleError(w, err, http.StatusInternalServerError, "cannot decode request JSON body: %s", nil)
 		return
 	}
 	user, _ := middlewares.GetUserFromContext(r.Context())
 	correlationSavedURLs, err := c.shortener.AddBatchURL(req)
 	resp := c.shortener.ConvertCorrelationSavedURLsToResponse(correlationSavedURLs)
 	if err != nil {
-		c.logger.Debugf("Shortener service error: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		c.handleError(w, err, http.StatusInternalServerError, "Shortener service error: %s", nil)
 		return
 	}
 	savedURLs := c.shortener.ConvertCorrelationSavedURLsToSavedURL(correlationSavedURLs)
-	err = c.shortener.AddBatchUserToURL(savedURLs, user)
-	if err != nil {
-		c.logger.Debugf("something went wrong: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+	if err := c.shortener.AddBatchUserToURL(savedURLs, user); err != nil {
+		c.handleError(w, err, http.StatusInternalServerError, "something went wrong: %s", nil)
 		return
 	}
+	c.writeJSONResponse(w, http.StatusCreated, resp)
+}
+
+// handleError обарабатывает ошибки, возникающие при вызове методов в контроллере
+func (c URLShortenerController) handleError(w http.ResponseWriter, err error, statusCode int, logMessage string, resp interface{}) {
+	c.logger.Debugf(logMessage, err)
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	enc := json.NewEncoder(w)
-	if err := enc.Encode(resp); err != nil {
-		c.logger.Debugf("cannot encode response JSON body: %s", err)
+	w.WriteHeader(statusCode)
+	if resp != nil {
+		enc := json.NewEncoder(w)
+		if encodeErr := enc.Encode(resp); encodeErr != nil {
+			c.logger.Debugf("cannot encode response JSON body: %s", encodeErr)
+		}
+	}
+}
+
+// handleShortenerServiceError обарабатывает специфичные ошибки URLShortener сервиса
+func (c URLShortenerController) handleShortenerServiceError(w http.ResponseWriter, err error, urlStr string, responseType string) {
+	var appError *apperrors.OriginalURLAlreadyExists
+	if ok := errors.As(err, &appError); ok {
+		c.logger.Debugf("Shortener service error: %s", err)
+		value, ok := c.shortener.GetURLByOriginalURL(urlStr)
+		if !ok {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+		if responseType == "json" {
+			resp := models.ShortenURLResponse{Result: value}
+			c.writeJSONResponse(w, http.StatusConflict, resp)
+		} else {
+			w.WriteHeader(http.StatusConflict)
+			fmt.Fprintf(w, "%v", value)
+		}
+	} else {
+		c.logger.Debugf("Shortener service error: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+	}
+}
+
+// writeJSONResponse отправляет json ответ с хэндлингом ошибки
+func (c URLShortenerController) writeJSONResponse(w http.ResponseWriter, statusCode int, responseBody interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if responseBody != nil {
+		if err := json.NewEncoder(w).Encode(responseBody); err != nil {
+			c.handleError(w, err, http.StatusInternalServerError, "cannot encode response JSON body: %s", nil)
+		}
 	}
 }
 

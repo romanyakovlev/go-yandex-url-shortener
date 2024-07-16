@@ -23,6 +23,7 @@ func setupURLShortenerService() (*shortener.URLShortenerService, *models.SharedU
 }
 
 func TestURLDeletionWorker_SendDeletionRequestToWorker(t *testing.T) {
+	t.Parallel()
 	service, _ := setupURLShortenerService()
 	worker := InitURLDeletionWorker(service)
 	req := DeletionRequest{
@@ -43,6 +44,7 @@ func TestURLDeletionWorker_SendDeletionRequestToWorker(t *testing.T) {
 }
 
 func TestURLDeletionWorker_ProcessDeletionRequest(t *testing.T) {
+	t.Parallel()
 	service, sharedURLRows := setupURLShortenerService()
 	worker := InitURLDeletionWorker(service)
 	ctx := context.Background()
@@ -77,6 +79,7 @@ func TestURLDeletionWorker_ProcessDeletionRequest(t *testing.T) {
 }
 
 func TestURLDeletionWorker_StartDeletionWorker(t *testing.T) {
+	t.Parallel()
 	service, sharedURLRows := setupURLShortenerService()
 	worker := InitURLDeletionWorker(service)
 	ctx, cancel := context.WithCancel(context.Background())

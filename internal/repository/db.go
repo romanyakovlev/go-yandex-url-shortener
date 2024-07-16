@@ -98,18 +98,28 @@ func (r DBURLRepository) BatchSave(urls []models.URLToSave) ([]uuid.UUID, error)
 	if err != nil {
 		return UUIDs, err
 	}
+
+	var errs []error
+
 	for _, url := range urls {
 		UUID := uuid.New()
 		_, err := r.db.Exec(query, UUID, url.RandomPath, url.URLStr)
 		if err != nil {
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
-				return UUIDs, fmt.Errorf("rollback error: %v; original error: %v", rollbackErr, err)
+				errs = append(errs, fmt.Errorf("rollback error: %v; original error: %v", rollbackErr, err))
+				continue
 			}
-			return UUIDs, err
+			errs = append(errs, err)
+			continue
 		}
 		UUIDs = append(UUIDs, UUID)
 	}
+
+	if len(errs) > 0 {
+		return UUIDs, errors.Join(errs...)
+	}
+
 	return UUIDs, tx.Commit()
 }
 
