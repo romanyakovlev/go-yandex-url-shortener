@@ -35,8 +35,8 @@ func TestURLDeletionWorker_SendDeletionRequestToWorker(t *testing.T) {
 	assert.NoError(t, err)
 
 	for i := 0; i < cap(worker.deletionRequestsChan)-1; i++ {
-		deletionErr := worker.SendDeletionRequestToWorker(req)
-		assert.NoError(t, deletionErr)
+		err := worker.SendDeletionRequestToWorker(req)
+		assert.NoError(t, err)
 	}
 
 	err = worker.SendDeletionRequestToWorker(req)
