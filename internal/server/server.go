@@ -4,6 +4,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -96,9 +97,22 @@ func Run() error {
 	defer cancel()
 	go worker.StartDeletionWorker(ctx)
 	go worker.StartErrorListener(ctx)
-	err = http.ListenAndServe(serverConfig.ServerAddress, router)
-	if err != nil {
-		sugar.Errorf("Server error: %v", err)
+	if serverConfig.EnableHTTPS {
+		if serverConfig.CertFile == "" || serverConfig.KeyFile == "" {
+			log.Fatal("certFile and keyFile must be provided when HTTPS mode is enabled")
+		}
+		log.Println("HTTPS mode is enabled")
+		err := http.ListenAndServeTLS(serverConfig.ServerAddress, serverConfig.CertFile, serverConfig.KeyFile, router)
+		if err != nil {
+			log.Fatalf("Failed to start HTTPS server: %v", err)
+		}
+	} else {
+		// HTTPS mode is not enabled
+		log.Println("HTTPS mode is not enabled")
+		err := http.ListenAndServe(serverConfig.ServerAddress, router)
+		if err != nil {
+			log.Fatalf("Failed to start HTTP server: %v", err)
+		}
 	}
 	return err
 }

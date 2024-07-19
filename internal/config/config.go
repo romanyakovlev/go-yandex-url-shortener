@@ -20,6 +20,9 @@ type argConfig struct {
 	flagBAddr string
 	flagFAddr string
 	flagDAddr string
+	flagSAddr bool
+	flagCAddr string
+	flagKAddr string
 }
 
 type envConfig struct {
@@ -27,6 +30,9 @@ type envConfig struct {
 	BaseURL         string `env:"BASE_URL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	DatabaseDSN     string `env:"DATABASE_DSN"`
+	enableHTTPS     bool   `env:"ENABLE_HTTPS"`
+	keyFile         string `env:"KEY_FILE"`
+	certFile        string `env:"CERT_FILE"`
 }
 
 // Config Доступные агрументы для конфигурации
@@ -39,6 +45,12 @@ type Config struct {
 	FileStoragePath string
 	// DatabaseDSN - Строка с адресом подключения к БД
 	DatabaseDSN string
+	// EnableHTTPS - Включить HTTPS режим
+	EnableHTTPS bool
+	// KeyFile - путь до ключа
+	KeyFile string
+	// CertFile - путь до сертификата
+	CertFile string
 }
 
 var onceParseEnvs sync.Once
@@ -63,6 +75,9 @@ func parseFlags() argConfig {
 		flag.StringVar(&cfg.flagBAddr, "b", "http://localhost:8080", "Базовый адрес результирующего сокращённого URL")
 		flag.StringVar(&cfg.flagFAddr, "f", "", "Путь для сохраниния данных в файле")
 		flag.StringVar(&cfg.flagDAddr, "d", "", "Строка с адресом подключения к БД")
+		flag.BoolVar(&cfg.flagSAddr, "s", false, "Включить HTTPS режим")
+		flag.StringVar(&cfg.flagKAddr, "k", "./keyfile.pem", "Путь до ключа")
+		flag.StringVar(&cfg.flagCAddr, "c", "./certfile.pem", "Путь до сертификата")
 		// делаем разбор командной строки
 		flag.Parse()
 	})
@@ -78,6 +93,9 @@ func GetConfig(s *logger.Logger) Config {
 	var BaseURL string
 	var FileStoragePath string
 	var DatabaseDSN string
+	var enableHTTPS bool
+	var keyFile string
+	var certFile string
 
 	if envCfg.ServerAddress != "" {
 		ServerAddress = envCfg.ServerAddress
@@ -99,10 +117,28 @@ func GetConfig(s *logger.Logger) Config {
 	} else {
 		DatabaseDSN = argCfg.flagDAddr
 	}
+	if envCfg.enableHTTPS {
+		enableHTTPS = envCfg.enableHTTPS
+	} else {
+		enableHTTPS = argCfg.flagSAddr
+	}
+	if envCfg.keyFile != "" {
+		keyFile = envCfg.keyFile
+	} else {
+		keyFile = argCfg.flagKAddr
+	}
+	if envCfg.certFile != "" {
+		certFile = envCfg.certFile
+	} else {
+		certFile = argCfg.flagCAddr
+	}
 	return Config{
 		ServerAddress:   ServerAddress,
 		BaseURL:         BaseURL,
 		FileStoragePath: FileStoragePath,
 		DatabaseDSN:     DatabaseDSN,
+		EnableHTTPS:     enableHTTPS,
+		KeyFile:         keyFile,
+		CertFile:        certFile,
 	}
 }
