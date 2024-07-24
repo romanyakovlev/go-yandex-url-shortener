@@ -6,6 +6,9 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -97,22 +100,36 @@ func Run() error {
 	defer cancel()
 	go worker.StartDeletionWorker(ctx)
 	go worker.StartErrorListener(ctx)
-	if serverConfig.EnableHTTPS {
-		if serverConfig.CertFile == "" || serverConfig.KeyFile == "" {
-			log.Fatal("certFile and keyFile must be provided when HTTPS mode is enabled")
-		}
-		log.Println("HTTPS mode is enabled")
-		err := http.ListenAndServeTLS(serverConfig.ServerAddress, serverConfig.CertFile, serverConfig.KeyFile, router)
-		if err != nil {
-			log.Fatalf("Failed to start HTTPS server: %v", err)
-		}
-	} else {
-		// HTTPS mode is not enabled
-		log.Println("HTTPS mode is not enabled")
-		err := http.ListenAndServe(serverConfig.ServerAddress, router)
-		if err != nil {
-			log.Fatalf("Failed to start HTTP server: %v", err)
-		}
+	server := &http.Server{
+		Addr:    serverConfig.ServerAddress,
+		Handler: router,
 	}
-	return err
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	defer stop()
+	go func() {
+		if serverConfig.EnableHTTPS {
+			if serverConfig.CertFile == "" || serverConfig.KeyFile == "" {
+				log.Fatal("certFile and keyFile must be provided when HTTPS mode is enabled")
+			}
+			log.Println("HTTPS mode is enabled")
+			if err := server.ListenAndServeTLS(serverConfig.CertFile, serverConfig.KeyFile); err != http.ErrServerClosed {
+				log.Fatalf("Failed to start HTTPS server: %v", err)
+			}
+		} else {
+			log.Println("HTTPS mode is not enabled")
+			if err := server.ListenAndServe(); err != http.ErrServerClosed {
+				log.Fatalf("Failed to start HTTP server: %v", err)
+			}
+		}
+	}()
+
+	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Server Shutdown Failed:%+v", err)
+		return err
+	}
+	log.Println("Server exited properly")
+	return nil
 }
