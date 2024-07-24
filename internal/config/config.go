@@ -7,7 +7,10 @@
 package config
 
 import (
+	"encoding/json"
 	"flag"
+	"log"
+	"os"
 	"sync"
 
 	"github.com/caarlos0/env/v6"
@@ -16,13 +19,14 @@ import (
 )
 
 type argConfig struct {
-	flagAAddr string
-	flagBAddr string
-	flagFAddr string
-	flagDAddr string
-	flagSAddr bool
-	flagCAddr string
-	flagKAddr string
+	flagAAddr    string
+	flagBAddr    string
+	flagFAddr    string
+	flagDAddr    string
+	flagSAddr    bool
+	flagCertAddr string
+	flagKeyAddr  string
+	flagCAddr    string
 }
 
 type envConfig struct {
@@ -33,20 +37,21 @@ type envConfig struct {
 	enableHTTPS     bool   `env:"ENABLE_HTTPS"`
 	keyFile         string `env:"KEY_FILE"`
 	certFile        string `env:"CERT_FILE"`
+	config          string `env:"CONFIG"`
 }
 
 // Config Доступные агрументы для конфигурации
 type Config struct {
 	// ServerAddress - Адрес запуска HTTP-сервера
-	ServerAddress string
+	ServerAddress string `json:"server_address"`
 	// BaseURL - Базовый адрес результирующего сокращённого URL
-	BaseURL string
+	BaseURL string `json:"base_url"`
 	// FileStoragePath - Путь для сохраниния данных в файле
-	FileStoragePath string
+	FileStoragePath string `json:"file_storage_path"`
 	// DatabaseDSN - Строка с адресом подключения к БД
-	DatabaseDSN string
+	DatabaseDSN string `json:"database_dsn"`
 	// EnableHTTPS - Включить HTTPS режим
-	EnableHTTPS bool
+	EnableHTTPS bool `json:"enable_https"`
 	// KeyFile - путь до ключа
 	KeyFile string
 	// CertFile - путь до сертификата
@@ -76,12 +81,31 @@ func parseFlags() argConfig {
 		flag.StringVar(&cfg.flagFAddr, "f", "", "Путь для сохраниния данных в файле")
 		flag.StringVar(&cfg.flagDAddr, "d", "", "Строка с адресом подключения к БД")
 		flag.BoolVar(&cfg.flagSAddr, "s", false, "Включить HTTPS режим")
-		flag.StringVar(&cfg.flagKAddr, "k", "./keyfile.pem", "Путь до ключа")
-		flag.StringVar(&cfg.flagCAddr, "c", "./certfile.pem", "Путь до сертификата")
+		flag.StringVar(&cfg.flagKeyAddr, "key", "./keyfile.pem", "Путь до ключа")
+		flag.StringVar(&cfg.flagCertAddr, "cert", "./certfile.pem", "Путь до сертификата")
+		flag.StringVar(&cfg.flagCAddr, "c", "", "Путь до файла конфигурации")
+		flag.StringVar(&cfg.flagCAddr, "config", "", "Путь до файла конфигурации")
 		// делаем разбор командной строки
 		flag.Parse()
 	})
 	return cfg
+}
+
+// ReadConfigFromFile читает конфигурацию из файла JSON.
+func ReadConfigFromFile(filePath string, config *Config) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(config)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetConfig возвращает готовый конфиг
@@ -96,28 +120,54 @@ func GetConfig(s *logger.Logger) Config {
 	var enableHTTPS bool
 	var keyFile string
 	var certFile string
+	var configPath string
 
-	if envCfg.ServerAddress != "" {
+	fileConfig := Config{}
+
+	if envCfg.config != "" {
+		configPath = envCfg.config
+	} else if argCfg.flagCAddr != "" {
+		configPath = argCfg.flagCAddr
+	}
+
+	if configPath != "" {
+		err := ReadConfigFromFile(configPath, &fileConfig)
+		if err != nil {
+			log.Fatalf("Failed to read config file: %v", err)
+		}
+	}
+
+	if fileConfig.ServerAddress != "" {
+		ServerAddress = fileConfig.ServerAddress
+	} else if envCfg.ServerAddress != "" {
 		ServerAddress = envCfg.ServerAddress
 	} else {
 		ServerAddress = argCfg.flagAAddr
 	}
-	if envCfg.BaseURL != "" {
+	if fileConfig.BaseURL != "" {
+		BaseURL = fileConfig.BaseURL
+	} else if envCfg.BaseURL != "" {
 		BaseURL = envCfg.BaseURL
 	} else {
 		BaseURL = argCfg.flagBAddr
 	}
-	if envCfg.FileStoragePath != "" {
+	if fileConfig.FileStoragePath != "" {
+		FileStoragePath = fileConfig.FileStoragePath
+	} else if envCfg.FileStoragePath != "" {
 		FileStoragePath = envCfg.FileStoragePath
 	} else {
 		FileStoragePath = argCfg.flagFAddr
 	}
-	if envCfg.DatabaseDSN != "" {
+	if fileConfig.DatabaseDSN != "" {
+		DatabaseDSN = fileConfig.DatabaseDSN
+	} else if envCfg.DatabaseDSN != "" {
 		DatabaseDSN = envCfg.DatabaseDSN
 	} else {
 		DatabaseDSN = argCfg.flagDAddr
 	}
-	if envCfg.enableHTTPS {
+	if fileConfig.EnableHTTPS {
+		enableHTTPS = fileConfig.EnableHTTPS
+	} else if envCfg.enableHTTPS {
 		enableHTTPS = envCfg.enableHTTPS
 	} else {
 		enableHTTPS = argCfg.flagSAddr
@@ -125,12 +175,12 @@ func GetConfig(s *logger.Logger) Config {
 	if envCfg.keyFile != "" {
 		keyFile = envCfg.keyFile
 	} else {
-		keyFile = argCfg.flagKAddr
+		keyFile = argCfg.flagKeyAddr
 	}
 	if envCfg.certFile != "" {
 		certFile = envCfg.certFile
 	} else {
-		certFile = argCfg.flagCAddr
+		certFile = argCfg.flagCertAddr
 	}
 	return Config{
 		ServerAddress:   ServerAddress,
