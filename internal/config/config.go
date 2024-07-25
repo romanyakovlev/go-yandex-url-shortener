@@ -9,7 +9,6 @@ package config
 import (
 	"encoding/json"
 	"flag"
-	"log"
 	"os"
 	"sync"
 
@@ -40,18 +39,26 @@ type envConfig struct {
 	config          string `env:"CONFIG"`
 }
 
+type fileConfig struct {
+	ServerAddress   string `json:"server_address"`
+	BaseURL         string `json:"base_url"`
+	FileStoragePath string `json:"file_storage_path"`
+	DatabaseDSN     string `json:"database_dsn"`
+	EnableHTTPS     bool   `json:"enable_https"`
+}
+
 // Config Доступные агрументы для конфигурации
 type Config struct {
 	// ServerAddress - Адрес запуска HTTP-сервера
-	ServerAddress string `json:"server_address"`
+	ServerAddress string
 	// BaseURL - Базовый адрес результирующего сокращённого URL
-	BaseURL string `json:"base_url"`
+	BaseURL string
 	// FileStoragePath - Путь для сохраниния данных в файле
-	FileStoragePath string `json:"file_storage_path"`
+	FileStoragePath string
 	// DatabaseDSN - Строка с адресом подключения к БД
-	DatabaseDSN string `json:"database_dsn"`
+	DatabaseDSN string
 	// EnableHTTPS - Включить HTTPS режим
-	EnableHTTPS bool `json:"enable_https"`
+	EnableHTTPS bool
 	// KeyFile - путь до ключа
 	KeyFile string
 	// CertFile - путь до сертификата
@@ -60,6 +67,7 @@ type Config struct {
 
 var onceParseEnvs sync.Once
 var onceParseFlags sync.Once
+var onceParseConfFile sync.Once
 
 func parseEnvs(s *logger.Logger) envConfig {
 	var cfg envConfig
@@ -91,8 +99,22 @@ func parseFlags() argConfig {
 	return cfg
 }
 
+func parseFile(configPath string, s *logger.Logger) fileConfig {
+	var cfg fileConfig
+	onceParseConfFile.Do(func() {
+		if configPath != "" {
+			err := ReadConfigFromFile(configPath, &cfg)
+			if err != nil {
+				s.Fatalf("Failed to read config file: %v", err)
+			}
+
+		}
+	})
+	return cfg
+}
+
 // ReadConfigFromFile читает конфигурацию из файла JSON.
-func ReadConfigFromFile(filePath string, config *Config) error {
+func ReadConfigFromFile(filePath string, config *fileConfig) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
@@ -108,87 +130,86 @@ func ReadConfigFromFile(filePath string, config *Config) error {
 	return nil
 }
 
+func parseFileConfig(fc *fileConfig, c *Config) {
+	if fc.ServerAddress != "" {
+		c.ServerAddress = fc.ServerAddress
+	}
+	if fc.BaseURL != "" {
+		c.BaseURL = fc.BaseURL
+	}
+	if fc.FileStoragePath != "" {
+		c.FileStoragePath = fc.FileStoragePath
+	}
+	if fc.DatabaseDSN != "" {
+		c.DatabaseDSN = fc.DatabaseDSN
+	}
+	if fc.EnableHTTPS {
+		c.EnableHTTPS = fc.EnableHTTPS
+	}
+}
+
+func parseEnvConfig(ec *envConfig, c *Config) {
+	if ec.ServerAddress != "" {
+		c.ServerAddress = ec.ServerAddress
+	}
+	if ec.BaseURL != "" {
+		c.BaseURL = ec.BaseURL
+	}
+	if ec.FileStoragePath != "" {
+		c.FileStoragePath = ec.FileStoragePath
+	}
+	if ec.DatabaseDSN != "" {
+		c.DatabaseDSN = ec.DatabaseDSN
+	}
+	if ec.enableHTTPS {
+		c.EnableHTTPS = ec.enableHTTPS
+	}
+	if ec.keyFile != "" {
+		c.KeyFile = ec.keyFile
+	}
+	if ec.certFile != "" {
+		c.CertFile = ec.certFile
+	}
+}
+
+func parseArgConfig(ac *argConfig, c *Config) {
+	if ac.flagAAddr != "" {
+		c.ServerAddress = ac.flagAAddr
+	}
+	if ac.flagBAddr != "" {
+		c.BaseURL = ac.flagBAddr
+	}
+	if ac.flagFAddr != "" {
+		c.FileStoragePath = ac.flagFAddr
+	}
+	if ac.flagDAddr != "" {
+		c.DatabaseDSN = ac.flagDAddr
+	}
+	if ac.flagSAddr {
+		c.EnableHTTPS = ac.flagSAddr
+	}
+	if ac.flagKeyAddr != "" {
+		c.KeyFile = ac.flagKeyAddr
+	}
+	if ac.flagCertAddr != "" {
+		c.CertFile = ac.flagCertAddr
+	}
+}
+
 // GetConfig возвращает готовый конфиг
 func GetConfig(s *logger.Logger) Config {
+	var configPath string
+	config := Config{}
 	argCfg := parseFlags()
 	envCfg := parseEnvs(s)
-
-	var ServerAddress string
-	var BaseURL string
-	var FileStoragePath string
-	var DatabaseDSN string
-	var enableHTTPS bool
-	var keyFile string
-	var certFile string
-	var configPath string
-
-	fileConfig := Config{}
-
 	if envCfg.config != "" {
 		configPath = envCfg.config
 	} else if argCfg.flagCAddr != "" {
 		configPath = argCfg.flagCAddr
 	}
-
-	if configPath != "" {
-		err := ReadConfigFromFile(configPath, &fileConfig)
-		if err != nil {
-			log.Fatalf("Failed to read config file: %v", err)
-		}
-	}
-
-	if fileConfig.ServerAddress != "" {
-		ServerAddress = fileConfig.ServerAddress
-	} else if envCfg.ServerAddress != "" {
-		ServerAddress = envCfg.ServerAddress
-	} else {
-		ServerAddress = argCfg.flagAAddr
-	}
-	if fileConfig.BaseURL != "" {
-		BaseURL = fileConfig.BaseURL
-	} else if envCfg.BaseURL != "" {
-		BaseURL = envCfg.BaseURL
-	} else {
-		BaseURL = argCfg.flagBAddr
-	}
-	if fileConfig.FileStoragePath != "" {
-		FileStoragePath = fileConfig.FileStoragePath
-	} else if envCfg.FileStoragePath != "" {
-		FileStoragePath = envCfg.FileStoragePath
-	} else {
-		FileStoragePath = argCfg.flagFAddr
-	}
-	if fileConfig.DatabaseDSN != "" {
-		DatabaseDSN = fileConfig.DatabaseDSN
-	} else if envCfg.DatabaseDSN != "" {
-		DatabaseDSN = envCfg.DatabaseDSN
-	} else {
-		DatabaseDSN = argCfg.flagDAddr
-	}
-	if fileConfig.EnableHTTPS {
-		enableHTTPS = fileConfig.EnableHTTPS
-	} else if envCfg.enableHTTPS {
-		enableHTTPS = envCfg.enableHTTPS
-	} else {
-		enableHTTPS = argCfg.flagSAddr
-	}
-	if envCfg.keyFile != "" {
-		keyFile = envCfg.keyFile
-	} else {
-		keyFile = argCfg.flagKeyAddr
-	}
-	if envCfg.certFile != "" {
-		certFile = envCfg.certFile
-	} else {
-		certFile = argCfg.flagCertAddr
-	}
-	return Config{
-		ServerAddress:   ServerAddress,
-		BaseURL:         BaseURL,
-		FileStoragePath: FileStoragePath,
-		DatabaseDSN:     DatabaseDSN,
-		EnableHTTPS:     enableHTTPS,
-		KeyFile:         keyFile,
-		CertFile:        certFile,
-	}
+	fileCfg := parseFile(configPath, s)
+	parseFileConfig(&fileCfg, &config)
+	parseArgConfig(&argCfg, &config)
+	parseEnvConfig(&envCfg, &config)
+	return config
 }
