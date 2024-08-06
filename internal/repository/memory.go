@@ -152,6 +152,32 @@ func (r *MemoryUserRepository) UpdateBatchUser(SavedURLUUIDs []uuid.UUID, userID
 	return nil
 }
 
+// GetStats возвращает статистику
+func (r *MemoryURLRepository) GetStats() (models.URLStats, bool) {
+	r.SharedURLRows.Mu.Lock()
+	defer r.SharedURLRows.Mu.Unlock()
+
+	var stats models.URLStats
+
+	uniqueUsers := make(map[uuid.UUID]struct{})
+	uniqueURLs := make(map[string]struct{})
+
+	for _, urlRow := range r.SharedURLRows.URLRows {
+
+		if _, exists := uniqueURLs[urlRow.ShortURL]; !exists {
+			uniqueURLs[urlRow.ShortURL] = struct{}{}
+			stats.URLs++
+		}
+
+		if _, exists := uniqueUsers[urlRow.UserID]; !exists {
+			uniqueUsers[urlRow.UserID] = struct{}{}
+			stats.Users++
+		}
+	}
+
+	return stats, true
+}
+
 // NewMemoryURLRepository создает новый экземпляр репозитория URL, хранящегося в памяти.
 func NewMemoryURLRepository(sharedURLRows *models.SharedURLRows) (*MemoryURLRepository, error) {
 	return &MemoryURLRepository{SharedURLRows: sharedURLRows}, nil

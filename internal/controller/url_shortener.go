@@ -41,6 +41,8 @@ type URLShortener interface {
 	// ConvertCorrelationSavedURLsToSavedURL преобразование модели данных []models.CorrelationSavedURL
 	// в модель []models.SavedURL для API-хелдлера
 	ConvertCorrelationSavedURLsToSavedURL(correlationSavedURLs []models.CorrelationSavedURL) []models.SavedURL
+	// GetStats возвращает статистику
+	GetStats() (models.URLStats, bool)
 }
 
 // URLShortenerController Контроллер для взаимодействия с внутренним сервисом сокращения ссылок URLShortener
@@ -151,6 +153,17 @@ func (c URLShortenerController) ShortenBatchURL(w http.ResponseWriter, r *http.R
 		return
 	}
 	c.writeJSONResponse(w, http.StatusCreated, resp)
+}
+
+// GetStats Возвращает статистику по количеству url-ов и пользователей
+func (c URLShortenerController) GetStats(w http.ResponseWriter, r *http.Request) {
+	//user, _ := middlewares.GetUserFromContext(r.Context())
+	resp, ok := c.shortener.GetStats()
+	if ok {
+		c.writeJSONResponse(w, http.StatusOK, resp)
+	} else {
+		w.WriteHeader(http.StatusBadRequest)
+	}
 }
 
 // handleError обарабатывает ошибки, возникающие при вызове методов в контроллере

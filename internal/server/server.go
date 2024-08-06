@@ -29,17 +29,20 @@ func Router(
 	URLShortenerController *controller.URLShortenerController,
 	HealthCheckController *controller.HealthCheckController,
 	sugar *logger.Logger,
+	cfg *config.Config,
 ) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middlewares.RequestLoggerMiddleware(sugar))
 	r.Use(middlewares.GzipMiddleware)
 	r.Use(middlewares.JWTMiddleware)
+	r.Use(middlewares.TrustedSubnetMiddleware(cfg.TrustedSubnet))
 	r.Post("/", URLShortenerController.SaveURL)
 	r.Get("/{shortURL:[A-Za-z]{8}}", URLShortenerController.GetURLByID)
 	r.Post("/api/shorten/batch", URLShortenerController.ShortenBatchURL)
 	r.Post("/api/shorten", URLShortenerController.ShortenURL)
 	r.Get("/api/user/urls", URLShortenerController.GetURLByUser)
 	r.Delete("/api/user/urls", URLShortenerController.DeleteBatchURL)
+	r.Get("/api/internal/stats", URLShortenerController.GetStats)
 	r.Get("/ping", HealthCheckController.Ping)
 	return r
 }
@@ -95,7 +98,7 @@ func Run() error {
 	worker := workers.InitURLDeletionWorker(shortenerService)
 	URLCtrl := controller.NewURLShortenerController(shortenerService, sugar, worker)
 	HealthCtrl := controller.NewHealthCheckController(DB)
-	router := Router(URLCtrl, HealthCtrl, sugar)
+	router := Router(URLCtrl, HealthCtrl, sugar, &serverConfig)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go worker.StartDeletionWorker(ctx)

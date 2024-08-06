@@ -73,6 +73,12 @@ type SharedURLRows struct {
 	URLRows []URLRow   // Список URL.
 }
 
+// URLStats структура для статистики по url
+type URLStats struct {
+	URLs  int `json:"urls"`  // количество сокращённых URL в сервисе
+	Users int `json:"users"` //  количество пользователей в сервисе
+}
+
 // NewSharedURLRows создает новый экземпляр SharedURLRows.
 func NewSharedURLRows() *SharedURLRows {
 	return &SharedURLRows{
