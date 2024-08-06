@@ -39,7 +39,7 @@ func setupServer() *httptest.Server {
 	db, _ := sql.Open("pgx", serverConfig.DatabaseDSN)
 	defer db.Close()
 	HealthCtrl := controller.NewHealthCheckController(db)
-	router := server.Router(URLCtrl, HealthCtrl, sugar)
+	router := server.Router(URLCtrl, HealthCtrl, sugar, &serverConfig)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go worker.StartDeletionWorker(ctx)

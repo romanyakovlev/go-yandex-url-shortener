@@ -17,6 +17,7 @@ type URLRepository interface {
 	Find(shortURL string) (models.URLRow, bool)            // Find выполняет поиск URL по короткому адресу.
 	FindByUserID(userID uuid.UUID) ([]models.URLRow, bool) // FindByUserID ищет все URL, принадлежащие пользователю.
 	FindByOriginalURL(originalURL string) (string, bool)   // FindByOriginalURL ищет URL по оригинальному адресу.
+	GetStats() (models.URLStats, bool)                     // GetStats возвращает статистику
 }
 
 // UserRepository определяет интерфейс для работы с хранилищем пользователей.
@@ -122,6 +123,12 @@ func (s URLShortenerService) GetURLByOriginalURL(originalURL string) (string, bo
 func (s URLShortenerService) DeleteBatchURL(urls []string, user models.User) error {
 	err := s.urlRepo.BatchDelete(urls, user.UUID)
 	return err
+}
+
+// GetStats возвращает статистику
+func (s URLShortenerService) GetStats() (models.URLStats, bool) {
+	row, ok := s.urlRepo.GetStats()
+	return row, ok
 }
 
 // ConvertCorrelationSavedURLsToResponse конвертирует сохраненные URL с корреляционными идентификаторами в формат ответа.
