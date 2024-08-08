@@ -178,6 +178,17 @@ func (r *DBUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID uui
 	return nil
 }
 
+// GetStats возвращает статистику
+func (r DBURLRepository) GetStats() (models.URLStats, bool) {
+	var stats models.URLStats
+	row := r.db.QueryRow("SELECT count(DISTINCT original_url), count(DISTINCT user_id) FROM url_rows")
+	err := row.Scan(&stats.URLs, &stats.Users)
+	if err != nil {
+		return models.URLStats{}, false
+	}
+	return stats, true
+}
+
 // NewDBURLRepository создает новый экземпляр репозитория URL.
 func NewDBURLRepository(db *sql.DB) (*DBURLRepository, error) {
 	return &DBURLRepository{db: db}, nil

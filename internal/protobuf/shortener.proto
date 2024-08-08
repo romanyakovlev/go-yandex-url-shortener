@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package shortener;
+option go_package = "./protobuf";
+
+import "google/protobuf/empty.proto";
+
+// The URLShortener service provides operations for shortening URLs and managing them.
+service URLShortenerService {
+  // SaveURL shortens a given URL.
+  rpc SaveURL(SaveURLRequest) returns (SaveURLResponse);
+
+  // DeleteBatchURL deletes a batch of URLs.
+  rpc DeleteBatchURL(DeleteBatchURLRequest) returns (google.protobuf.Empty);
+
+  // GetURLByID retrieves the original URL based on a short URL.
+  rpc GetURLByID(GetURLByIDRequest) returns (GetURLByIDResponse);
+
+  // GetURLByUser retrieves all URLs uploaded by a user.
+  rpc GetURLByUser(GetURLByUserRequest) returns (GetURLByUserResponse);
+
+  // ShortenBatchURL shortens a batch of URLs.
+  rpc ShortenBatchURL(ShortenBatchURLRequest) returns (ShortenBatchURLResponse);
+
+  // GetStats retrieves statistics about URLs and users.
+  rpc GetStats(google.protobuf.Empty) returns (GetStatsResponse);
+}
+
+// Request and response messages
+message SaveURLRequest {
+  string url = 1;
+}
+
+message SaveURLResponse {
+  string shortURL = 1;
+}
+
+message DeleteBatchURLRequest {
+  repeated string urls = 1;
+}
+
+message GetURLByIDRequest {
+  string shortURL = 1;
+}
+
+message GetURLByIDResponse {
+  string originalURL = 1;
+}
+
+message GetURLByUserRequest {
+  string userToken = 1; // Assuming user identification by token for simplicity
+}
+
+message GetURLByUserResponse {
+  repeated URLByUserResponseElement urls = 1;
+}
+
+message ShortenBatchURLRequest {
+  repeated ShortenBatchURLRequestElement urls = 1;
+}
+
+message ShortenBatchURLResponse {
+  repeated ShortenBatchURLResponseElement urls = 1;
+}
+
+message GetStatsResponse {
+  int32 urls = 1;
+  int32 users = 2;
+}
+
+// Data structure messages
+message ShortenBatchURLRequestElement {
+  string correlationId = 1;
+  string originalURL = 2;
+}
+
+message ShortenBatchURLResponseElement {
+  string correlationId = 1;
+  string shortURL = 2;
+}
+
+message URLByUserResponseElement {
+  string shortURL = 1;
+  string originalURL = 2;
+}

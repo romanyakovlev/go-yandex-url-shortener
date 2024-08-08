@@ -50,7 +50,7 @@ func Example() {
 	HealthCtrl := controller.NewHealthCheckController(DB)
 
 	// Инициализируем маршрутизатор
-	router := Router(URLCtrl, HealthCtrl, sugar)
+	router := Router(URLCtrl, HealthCtrl, sugar, &serverConfig)
 
 	// Контекст для грациозного завершения
 	ctx, cancel := context.WithCancel(context.Background())

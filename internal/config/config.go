@@ -26,6 +26,7 @@ type argConfig struct {
 	flagCertAddr string
 	flagKeyAddr  string
 	flagCAddr    string
+	flagTAddr    string
 }
 
 type envConfig struct {
@@ -37,6 +38,7 @@ type envConfig struct {
 	keyFile         string `env:"KEY_FILE"`
 	certFile        string `env:"CERT_FILE"`
 	config          string `env:"CONFIG"`
+	trustedSubnet   string `env:"TRUSTED_SUBNET"`
 }
 
 type fileConfig struct {
@@ -45,6 +47,7 @@ type fileConfig struct {
 	FileStoragePath string `json:"file_storage_path"`
 	DatabaseDSN     string `json:"database_dsn"`
 	EnableHTTPS     bool   `json:"enable_https"`
+	TrustedSubnet   string `json:"trusted_subnet"`
 }
 
 // Config Доступные агрументы для конфигурации
@@ -63,6 +66,8 @@ type Config struct {
 	KeyFile string
 	// CertFile - путь до сертификата
 	CertFile string
+	// TrustedSubnet - строковое представление бесклассовой адресации
+	TrustedSubnet string
 }
 
 var onceParseEnvs sync.Once
@@ -93,6 +98,7 @@ func parseFlags() argConfig {
 		flag.StringVar(&cfg.flagCertAddr, "cert", "./certfile.pem", "Путь до сертификата")
 		flag.StringVar(&cfg.flagCAddr, "c", "", "Путь до файла конфигурации")
 		flag.StringVar(&cfg.flagCAddr, "config", "", "Путь до файла конфигурации")
+		flag.StringVar(&cfg.flagTAddr, "t", "", "Cтроковое представление бесклассовой адресации")
 		// делаем разбор командной строки
 		flag.Parse()
 	})
@@ -146,6 +152,9 @@ func parseFileConfig(fc *fileConfig, c *Config) {
 	if fc.EnableHTTPS {
 		c.EnableHTTPS = fc.EnableHTTPS
 	}
+	if fc.TrustedSubnet != "" {
+		c.TrustedSubnet = fc.TrustedSubnet
+	}
 }
 
 func parseEnvConfig(ec *envConfig, c *Config) {
@@ -170,6 +179,9 @@ func parseEnvConfig(ec *envConfig, c *Config) {
 	if ec.certFile != "" {
 		c.CertFile = ec.certFile
 	}
+	if ec.trustedSubnet != "" {
+		c.TrustedSubnet = ec.trustedSubnet
+	}
 }
 
 func parseArgConfig(ac *argConfig, c *Config) {
@@ -193,6 +205,9 @@ func parseArgConfig(ac *argConfig, c *Config) {
 	}
 	if ac.flagCertAddr != "" {
 		c.CertFile = ac.flagCertAddr
+	}
+	if ac.flagTAddr != "" {
+		c.TrustedSubnet = ac.flagTAddr
 	}
 }
 

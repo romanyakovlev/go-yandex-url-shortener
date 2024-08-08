@@ -420,6 +420,41 @@ func (r *FileUserRepository) UpdateBatchUser(savedURLUUIDs []uuid.UUID, userID u
 	return nil
 }
 
+// GetStats возвращает статистику
+func (r *FileURLRepository) GetStats() (models.URLStats, bool) {
+	var stats models.URLStats
+	scanner, file, err := r.newScanner()
+	if err != nil {
+		r.Logger.Errorf("Error creating scanner: %v", err)
+		return models.URLStats{}, false
+	}
+	defer file.Close()
+
+	uniqueUsers := make(map[uuid.UUID]struct{})
+	uniqueURLs := make(map[string]struct{})
+
+	for scanner.Scan() {
+		var urlRow models.URLRow
+		line := scanner.Text()
+		if err := json.Unmarshal([]byte(line), &urlRow); err != nil {
+			r.Logger.Debugf("Cannot decode line JSON: %s", err)
+			continue
+		}
+
+		if _, exists := uniqueURLs[urlRow.ShortURL]; !exists {
+			uniqueURLs[urlRow.ShortURL] = struct{}{}
+			stats.URLs++
+		}
+
+		if _, exists := uniqueUsers[urlRow.UserID]; !exists {
+			uniqueUsers[urlRow.UserID] = struct{}{}
+			stats.Users++
+		}
+	}
+
+	return stats, true
+}
+
 // NewFileURLRepository создает новый экземпляр репозитория URL, хранящегося в файле.
 func NewFileURLRepository(serverConfig config.Config, sugar *logger.Logger) (*FileURLRepository, error) {
 	return &FileURLRepository{filePath: serverConfig.FileStoragePath, Logger: sugar}, nil
