@@ -5,20 +5,26 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"net"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"google.golang.org/grpc"
 
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/config"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/controller"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/db"
+	grpc_server "github.com/romanyakovlev/go-yandex-url-shortener/internal/grpc"
+	"github.com/romanyakovlev/go-yandex-url-shortener/internal/interceptors"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/logger"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/middlewares"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/models"
+	pb "github.com/romanyakovlev/go-yandex-url-shortener/internal/protobuf/protobuf"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/repository"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/service"
 	"github.com/romanyakovlev/go-yandex-url-shortener/internal/workers"
@@ -98,6 +104,27 @@ func Run() error {
 	worker := workers.InitURLDeletionWorker(shortenerService)
 	URLCtrl := controller.NewURLShortenerController(shortenerService, sugar, worker)
 	HealthCtrl := controller.NewHealthCheckController(DB)
+
+	go func() {
+		lis, err := net.Listen("tcp", ":50051")
+		if err != nil {
+			log.Fatalf("failed to listen for gRPC: %v", err)
+		}
+
+		grpcServer := grpc.NewServer(
+			grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+				interceptors.JWTAuthInterceptor,
+				interceptors.TrustedSubnetInterceptor(serverConfig.TrustedSubnet),
+			)),
+		)
+		pb.RegisterURLShortenerServiceServer(grpcServer, &grpc_server.Server{Shortener: shortenerService, Worker: worker})
+
+		log.Printf("gRPC server listening at %v", lis.Addr())
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("failed to serve gRPC: %v", err)
+		}
+	}()
+
 	router := Router(URLCtrl, HealthCtrl, sugar, &serverConfig)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
